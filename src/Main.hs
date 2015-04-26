@@ -1,40 +1,37 @@
-#!/usr/bin/env runghc
-
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TemplateHaskell   #-}
 
 module Main where
 
-import qualified Blaze.ByteString.Builder as Builder
+import qualified Blaze.ByteString.Builder              as Builder
 import           Control.DeepSeq
 import           Control.Exception
 import           Control.Lens
 import           Control.Monad
 import           Control.Monad.State.Strict
 import           Data.Bits
-import           Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as BS8
-import           Data.Char (isSpace, toLower)
+import           Data.ByteString                       (ByteString)
+import qualified Data.ByteString                       as BS
+import qualified Data.ByteString.Char8                 as BS8
+import           Data.Char                             (isSpace, toLower)
 import           Data.List.Split
 import           Data.Maybe
 import           Data.Monoid
-import           Data.Version (showVersion)
+import           Data.Version                          (showVersion)
+import qualified Distribution.Package                  as C
+import qualified Distribution.PackageDescription       as C
+import qualified Distribution.PackageDescription.Parse as C
+import qualified Distribution.Verbosity                as C
 import           Network.Http.Client
 import           Network.NetRc
-import           Numeric.Natural (Natural)
-import           OpenSSL (withOpenSSL)
-import           Options.Applicative as OA
+import           Numeric.Natural                       (Natural)
+import           OpenSSL                               (withOpenSSL)
+import           Options.Applicative                   as OA
 import           System.Directory
-import qualified System.IO.Streams as Streams
+import qualified System.IO.Streams                     as Streams
 import           Text.HTML.TagSoup
-
-import qualified Distribution.PackageDescription.Parse as C
-import qualified Distribution.Verbosity as C
-import qualified Distribution.PackageDescription as C
-import qualified Distribution.Package as C
 
 import qualified Paths_hackage_cli
 
@@ -64,7 +61,7 @@ hcReqLeft g = hcReqCnt (g . f)
 setUA :: RequestBuilder ()
 setUA = setHeader "User-Agent" uaStr
   where
-    uaStr = "hackage-cli/" <> (BS8.pack $ showVersion Paths_hackage_cli.version)
+    uaStr = "hackage-cli/" <> BS8.pack (showVersion Paths_hackage_cli.version)
 
 hackageSendGET :: ByteString -> ByteString -> HIO ()
 hackageSendGET p a = do
@@ -115,10 +112,11 @@ hackagePostCabal cred (pkgn,pkgv) rawcab dry = do
     closeHConn
 
     case resp of
-        Right bs -> do
+        Right bs -> -- do
             -- liftIO $ BS.writeFile "raw.out" bs
             return (BS8.unlines [ h2 <> ":\n" <> renderTags ts | (h2, ts) <- scrape200 bs ])
-        Left (HttpClientError _code bs) -> do
+
+        Left (HttpClientError _code bs) -> -- do
             -- Hackage currently timeouts w/ 503 guru meditation errors,
             -- which usually means that the transaction has succeeded
             -- liftIO $ BS.writeFile "raw.out" bs
@@ -127,7 +125,7 @@ hackagePostCabal cred (pkgn,pkgv) rawcab dry = do
     urlpath = mconcat [ "/package/", pkgn, "-", pkgv, "/", pkgn, ".cabal/edit" ]
 
     bsBody :: ByteString -> Streams.OutputStream Builder.Builder -> IO ()
-    bsBody bs o = Streams.write (Just (Builder.fromByteString bs)) o
+    bsBody bs = Streams.write (Just (Builder.fromByteString bs))
 
     isDry DryRun = True
     isDry WetRun = False
@@ -294,16 +292,15 @@ closeHConn = do
         hcRspCnt .= 0
 
 openHConn :: HIO Connection
-openHConn = do
-    use hcConn >>= \case
-        Just c -> return c
-        Nothing -> do
-            mkConn <- use hcMkConn
-            c <- liftIO mkConn
-            hcConn   .= Just c
-            hcReqCnt .= 0 -- redundant
-            hcRspCnt .= 0 -- redundant
-            return c
+openHConn = use hcConn >>= \case
+    Just c -> return c
+    Nothing -> do
+        mkConn <- use hcMkConn
+        c <- liftIO mkConn
+        hcConn   .= Just c
+        hcReqCnt .= 0 -- redundant
+        hcRspCnt .= 0 -- redundant
+        return c
 
 reOpenHConn :: HIO Connection
 reOpenHConn = closeHConn >> openHConn
@@ -311,7 +308,7 @@ reOpenHConn = closeHConn >> openHConn
 getHConn :: HIO (Connection,Natural)
 getHConn = do
     lft <- use hcReqLeft
-    c <- if (lft > 0) then openHConn else reOpenHConn
+    c <- if lft > 0 then openHConn else reOpenHConn
     (,) c <$> use hcReqLeft
 
 nlength :: [a] -> Natural
@@ -402,7 +399,7 @@ mainWithOptions Options {..} = do
                    False -> do
                        BS.writeFile fn raw
                        putStrLn ("saved " ++ fn ++ " (" ++ show (BS.length raw) ++ " bytes)")
-                   True -> do
+                   True ->
                        putStrLn ("WARNING: skipped existing " ++ fn)
 
            return ()
@@ -439,12 +436,13 @@ mainWithOptions Options {..} = do
             return res
 
     getHackageCreds :: IO (Maybe (ByteString,ByteString))
-    getHackageCreds = do
+    getHackageCreds =
         readUserNetRc >>= \case
             Nothing -> pure Nothing
             Just (Left _) -> fail "Invalid ${HOME}/.netrc found"
-            Just (Right (NetRc {..})) -> do
-                evaluate $ fmap (\NetRcHost{..} -> (nrhLogin,nrhPassword)) $ listToMaybe (filter ((== optHost) . nrhName) nrHosts)
+            Just (Right (NetRc {..})) ->
+                evaluate $ (\NetRcHost{..} -> (nrhLogin,nrhPassword))
+                           <$> listToMaybe (filter ((== optHost) . nrhName) nrHosts)
 
 
     pkgDescToPkgIdXrev pdesc = force (BS8.pack pkgn, BS8.pack $ showVersion pkgv, read xrev :: PkgRev)
