@@ -25,6 +25,9 @@ executable hackage-cli
   hs-source-dirs:      src
   main-is:             Main.hs
 
+  other-modules:
+    Paths_hackage_cli
+
   build-depends:
     Cabal                  >=1.22 && <1.23,
     HsOpenSSL              >=0.11 && <0.12,

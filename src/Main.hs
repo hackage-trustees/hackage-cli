@@ -36,6 +36,8 @@ import qualified Distribution.Verbosity as C
 import qualified Distribution.PackageDescription as C
 import qualified Distribution.Package as C
 
+import qualified Paths_hackage_cli
+
 type PkgName = ByteString
 type PkgVer  = ByteString
 type PkgRev  = Word
@@ -60,7 +62,9 @@ hcReqLeft g = hcReqCnt (g . f)
     lim = 50
 
 setUA :: RequestBuilder ()
-setUA = setHeader "User-Agent" "hackage-cli/0.1"
+setUA = setHeader "User-Agent" uaStr
+  where
+    uaStr = "hackage-cli/" <> (BS8.pack $ showVersion Paths_hackage_cli.version)
 
 hackageSendGET :: ByteString -> ByteString -> HIO ()
 hackageSendGET p a = do
@@ -344,10 +348,15 @@ data Command
 
 optionsParserInfo :: ParserInfo Options
 optionsParserInfo
-    = info (helper <*> oParser)
-            ( fullDesc
-              -- <> progDesc "Hackage CLI Tool"
-              <> header "hackage-cli - CLI tool for Hackage")
+    = info (helper <*> verOption <*> oParser)
+           (fullDesc
+            <> header "hackage-cli - CLI tool for Hackage"
+            <> footer "\
+              \ Each command has a sub-`--help` text. Hackage credentials are expected to be \
+              \ stored in an `${HOME}/.netrc`-entry for the respective Hackage hostname. \
+              \ E.g. \"machine hackage.haskell.org login MyUserName password TrustNo1\". \
+              \ ")
+
   where
     bstr = BS8.pack <$> str
 
@@ -366,6 +375,10 @@ optionsParserInfo
                                  <> command "push-cabal" (info (helper <*> pushcoParser)
                                                           (progDesc "upload revised .cabal files"))
                                 )
+
+    verOption = infoOption verMsg (long "version" <> help "output version information and exit")
+      where
+        verMsg = "hackage-cli " <> showVersion Paths_hackage_cli.version
 
 ----------------------------------------------------------------------------
 
