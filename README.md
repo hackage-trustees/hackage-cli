@@ -14,6 +14,7 @@ Available options:
 Available commands:
   pull-cabal               download .cabal files for a package
   push-cabal               upload revised .cabal files
+  push-candidate           upload package candidate(s)
   list-versions            list versions for a package
 
 Each command has a sub-`--help` text. Hackage credentials are expected to be

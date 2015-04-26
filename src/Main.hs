@@ -32,6 +32,7 @@ import           Numeric.Natural                       (Natural)
 import           OpenSSL                               (withOpenSSL)
 import           Options.Applicative                   as OA
 import           System.Directory
+import           System.FilePath
 import qualified System.IO.Streams                     as Streams
 import           Text.HTML.TagSoup
 
@@ -104,7 +105,7 @@ hackagePostCabal cred (pkgn,pkgv) rawcab dry = do
         setUA
         uncurry setAuthorizationBasic cred
         setAccept "application/json" -- wishful thinking
-        setContentType ("multipart/form-data; boundary="<>boundary)
+        setContentType ("multipart/form-data; boundary="<>boundary) -- RFC2388
 
     c <- reOpenHConn
 
@@ -126,13 +127,10 @@ hackagePostCabal cred (pkgn,pkgv) rawcab dry = do
   where
     urlpath = mconcat [ "/package/", pkgn, "-", pkgv, "/", pkgn, ".cabal/edit" ]
 
-    bsBody :: ByteString -> Streams.OutputStream Builder.Builder -> IO ()
-    bsBody bs = Streams.write (Just (Builder.fromByteString bs))
-
     isDry DryRun = True
     isDry WetRun = False
 
-    body = mconcat
+    body = mconcat -- RFC2388
            [ "--", boundary, "\r\n"
            , "Content-Disposition: form-data; name=", "\"", if isDry dry then "review" else "publish", "\"", "\r\n"
            , "\r\n"
@@ -161,6 +159,72 @@ hackagePostCabal cred (pkgn,pkgv) rawcab dry = do
           where
             t' = fst . BS8.spanEnd (=='\n') . BS8.dropWhile (=='\n') $ t
         cleanText x = x
+
+bsBody :: ByteString -> Streams.OutputStream Builder.Builder -> IO ()
+bsBody bs = Streams.write (Just (Builder.fromByteString bs))
+
+-- | Upload a candidate to Hackage
+--
+-- This is a bit overkill, as one could easily just use @curl(1)@ for this:
+--
+-- > curl --form package=@"$PKGID".tar.gz -u "${CREDS}" https://hackage.haskell.org/packages/candidates/
+--
+hackagePushCandidate :: (ByteString,ByteString) -> (FilePath,ByteString) -> HIO ByteString
+hackagePushCandidate cred (tarname,rawtarball) = do
+    when (boundary `BS.isInfixOf` rawtarball) $ fail "WTF... tarball contains boundary-pattern"
+
+    q1 <- liftIO $ buildRequest $ do
+        http POST urlpath
+        setUA
+        uncurry setAuthorizationBasic cred
+        setAccept "application/json" -- wishful thinking
+        setContentType ("multipart/form-data; boundary="<>boundary) -- RFC2388
+        setContentLength bodyLen
+
+    c <- reOpenHConn
+
+    liftIO $ sendRequest c q1 (bsBody body)
+
+    resp <- liftIO $ try (receiveResponse c (\r is -> (,) r <$> concatHandler r is))
+    closeHConn
+
+    case resp of
+        Right (rc,bs) -> do
+            return (BS8.pack (show rc) <> bs)
+        Left (HttpClientError code bs) -> return (BS8.pack ("code=" <> show code <> "\n") <> bs)
+            -- Hackage currently timeouts w/ 503 guru meditation errors,
+            -- which usually means that the transaction has succeeded
+  where
+    urlpath = "/packages/candidates/"
+
+    body = Builder.toByteString $
+           multiPartBuilder boundary [ ("package", [("filename", BS8.pack tarname)]
+                                     , ["Content-Type: application/gzip"], rawtarball)]
+    bodyLen = fromIntegral $ BS.length body
+
+    boundary = "4d5bb1565a084d78868ff0178bdf4f61"
+
+-- | Simplified RFC2388 multipart/form-data formatter
+--
+-- TODO: make a streaming-variant
+multiPartBuilder :: ByteString -> [(ByteString,[(ByteString,ByteString)],[ByteString],ByteString)] -> Builder.Builder
+multiPartBuilder boundary mparts = mconcat $ concatMap mkPart mparts ++ trailer
+  where
+    mkPart (name, xprops, xhdrs, payload)
+        = [ dash, bs boundary, crlf
+          , bs"Content-Disposition: form-data; name=\"", bs name, bs"\""
+          ] ++
+          concat [ [bs "; ", bs k, bs"=\"", bs v, bs"\"" ] | (k,v) <- xprops ] ++ [ crlf ] ++
+          concat [ [bs h, crlf] | h <- xhdrs ] ++
+          [ crlf
+          , bs payload, crlf
+          ]
+
+    trailer = [ dash, bs boundary, dash, crlf ]
+
+    crlf = bs"\r\n"
+    dash = bs"--"
+    bs = Builder.fromByteString
 
 fetchVersions :: PkgName -> HIO [(PkgVer,PkgVerStatus)]
 fetchVersions pkgn = do
@@ -358,10 +422,15 @@ data PushCOptions = PushCOptions
   , optPCFiles   :: [FilePath]
   } deriving Show
 
+data PushPCOptions = PushPCOptions
+  { optPPCFiles :: [FilePath]
+  } deriving Show
+
 data Command
     = ListCabal !ListCOptions
     | PullCabal !PullCOptions
     | PushCabal !PushCOptions
+    | PushCandidate !PushPCOptions
     deriving Show
 
 optionsParserInfo :: ParserInfo Options
@@ -373,6 +442,7 @@ optionsParserInfo
               \ Each command has a sub-`--help` text. Hackage credentials are expected to be \
               \ stored in an `${HOME}/.netrc`-entry for the respective Hackage hostname. \
               \ E.g. \"machine hackage.haskell.org login MyUserName password TrustNo1\". \
+              \ All interactions with Hackage occur TLS-encrypted via the HTTPS protocol. \
               \ ")
 
   where
@@ -385,6 +455,8 @@ optionsParserInfo
                                   <*> switch (long "dry"      <> help "upload in review-mode")
                                   <*> some (OA.argument str (metavar "CABALFILES...")))
 
+    pushpcoParser = PushCandidate <$> (PushPCOptions <$> some (OA.argument str (metavar "TARBALLS...")))
+
     oParser
         = Options <$> switch (long "verbose" <> help "enable verbose output")
                   <*> option bstr (long "hostname"  <> metavar "HOSTNAME" <> value "hackage.haskell.org"
@@ -393,6 +465,8 @@ optionsParserInfo
                                                    (progDesc "download .cabal files for a package"))
                                          , command "push-cabal" (info (helper <*> pushcoParser)
                                                    (progDesc "upload revised .cabal files"))
+                                         , command "push-candidate" (info (helper <*> pushpcoParser)
+                                                   (progDesc "upload package candidate(s)"))
                                          , command "list-versions" (info (helper <*> listcoParser)
                                                    (progDesc "list versions for a package"))
                                          ])
@@ -462,6 +536,21 @@ mainWithOptions Options {..} = do
                tmp <- runHConn (hackagePostCabal (username,password) (pkgn,pkgv) rawcab
                                                  (if optPCDry then DryRun else WetRun))
                BS8.putStrLn tmp
+
+
+       PushCandidate (PushPCOptions {..}) -> do
+           (username,password) <- maybe (fail "missing Hackage credentials") return =<< getHackageCreds
+           putStrLn $ "Using Hackage credentials for username " ++ show username
+
+           forM_ optPPCFiles $ \fn -> do
+               putStrLn $ "reading " ++ show fn ++ " ..."
+               rawtar <- BS.readFile fn
+               putStrLn $ "uplading to Hackage..."
+               tmp <- runHConn (hackagePushCandidate (username,password) (takeFileName fn, rawtar))
+               putStrLn "Hackage response was:"
+               putStrLn (replicate 80 '=')
+               BS8.putStrLn tmp
+               putStrLn (replicate 80 '=')
 
    return ()
   where
