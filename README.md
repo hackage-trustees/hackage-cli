@@ -14,6 +14,7 @@ Available options:
 Available commands:
   pull-cabal               download .cabal files for a package
   push-cabal               upload revised .cabal files
+  list-versions            list versions for a package
 
 Each command has a sub-`--help` text. Hackage credentials are expected to be
 stored in an `${HOME}/.netrc`-entry for the respective Hackage hostname. E.g.

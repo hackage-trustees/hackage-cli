@@ -1,7 +1,9 @@
+{-# LANGUAGE BangPatterns      #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 module Main where
 
@@ -52,7 +54,7 @@ makeLenses ''HConn
 
 -- | Requests that can be issued in current connection before exhausting the 50-req/conn server limit
 hcReqLeft :: Getter HConn Natural -- (Natural -> f Natural) -> HConn -> f HConn
-hcReqLeft g = hcReqCnt (g . f)
+hcReqLeft = hcReqCnt . to f
   where
     f n | n > lim   = 0
         | otherwise = lim - n
@@ -160,7 +162,7 @@ hackagePostCabal cred (pkgn,pkgv) rawcab dry = do
             t' = fst . BS8.spanEnd (=='\n') . BS8.dropWhile (=='\n') $ t
         cleanText x = x
 
-fetchVersions :: PkgName -> HIO [PkgVer]
+fetchVersions :: PkgName -> HIO [(PkgVer,PkgVerStatus)]
 fetchVersions pkgn = do
     hackageSendGET ("/package/" <> pkgn) "text/html"
     resp <- hackageRecvResp
@@ -260,21 +262,35 @@ fetchAllCabalFiles :: PkgName -> HIO [(PkgVer,ByteString)]
 fetchAllCabalFiles pkgn = do
     vs <- fetchVersions pkgn
     liftIO $ putStrLn ("Found " ++ show (length vs) ++ " package versions for " ++ show pkgn ++ ", downloading now...")
-    fetchCabalFiles pkgn vs
+    fetchCabalFiles pkgn (map fst vs)
     -- forM vs $ \v -> (,) v <$> fetchCabalFile c pkgn v
 
-scrapeVersions :: ByteString -> [PkgVer]
+data PkgVerStatus = Normal | UnPreferred | Deprecated deriving Eq
+instance NFData PkgVerStatus where rnf !_ = ()
+
+scrapeVersions :: ByteString -> [(PkgVer,PkgVerStatus)]
 scrapeVersions html = force vs
   where
     [vs] = mapMaybe getVerRow $ partitions (== TagOpen "tr" []) $ parseTags html
 
     getVerRow (TagOpen "tr" _ : TagOpen "th" _ : TagText "Versions" : TagClose "th" : TagOpen "td" _ : ts)
-        | last ts == TagClose "tr" = Just (map go $ chunksOf 4 $ init $ init ts)
+        | ts' <- trimVerRow ts = Just (map go $ chunksOf 4 ts')
     getVerRow _ = Nothing
 
-    go [TagOpen "a" _, TagText verStr, TagClose "a", TagText ", "] = verStr
-    go [TagOpen "strong" _, TagText verStr, TagClose "strong"] = verStr
+    go [TagOpen "a" attr, TagText verStr, TagClose "a", TagText ", "] = (verStr,isPref attr)
+    go [TagOpen "strong" attr, TagText verStr, TagClose "strong"] = (verStr,isPref attr)
     go _ = error "unexpected HTML structure structure"
+
+    isPref as = case lookup "class" as of
+        Just "unpreferred" -> UnPreferred
+        Just "deprecated"  -> Deprecated
+        Just _             -> error "unexpected version status"
+        Nothing            -> Normal
+
+    trimVerRow (reverse -> TagClose "tr":TagClose "td":
+                           TagText ")":TagClose "a":TagText "info":TagOpen "a" _:TagText " (":ts') = reverse ts'
+    trimVerRow (reverse -> TagClose "tr":TagClose "td":ts') = reverse ts'
+    trimVerRow _ = error "trimVerRow: unexpected HTML structure"
 
 closeHConn :: HIO ()
 closeHConn = do
@@ -332,6 +348,10 @@ data PullCOptions = PullCOptions
   { optPCPkgName :: PkgName
   } deriving Show
 
+data ListCOptions = ListCOptions
+  { optLCPkgName :: PkgName
+  } deriving Show
+
 data PushCOptions = PushCOptions
   { optPCIncrRev :: !Bool
   , optPCDry     :: !Bool
@@ -339,7 +359,8 @@ data PushCOptions = PushCOptions
   } deriving Show
 
 data Command
-    = PullCabal !PullCOptions
+    = ListCabal !ListCOptions
+    | PullCabal !PullCOptions
     | PushCabal !PushCOptions
     deriving Show
 
@@ -357,6 +378,7 @@ optionsParserInfo
   where
     bstr = BS8.pack <$> str
 
+    listcoParser = ListCabal . ListCOptions <$> OA.argument bstr (metavar "PKGNAME")
     pullcoParser = PullCabal . PullCOptions <$> OA.argument bstr (metavar "PKGNAME")
     pushcoParser = PushCabal <$> (PushCOptions
                                   <$> switch (long "incr-rev" <> help "increment x-revision field")
@@ -367,11 +389,13 @@ optionsParserInfo
         = Options <$> switch (long "verbose" <> help "enable verbose output")
                   <*> option bstr (long "hostname"  <> metavar "HOSTNAME" <> value "hackage.haskell.org"
                                    <> help "Hackage hostname" <> showDefault)
-                  <*> subparser (command "pull-cabal" (info (helper <*> pullcoParser)
-                                                       (progDesc "download .cabal files for a package"))
-                                 <> command "push-cabal" (info (helper <*> pushcoParser)
-                                                          (progDesc "upload revised .cabal files"))
-                                )
+                  <*> subparser (mconcat [ command "pull-cabal" (info (helper <*> pullcoParser)
+                                                   (progDesc "download .cabal files for a package"))
+                                         , command "push-cabal" (info (helper <*> pushcoParser)
+                                                   (progDesc "upload revised .cabal files"))
+                                         , command "list-versions" (info (helper <*> listcoParser)
+                                                   (progDesc "list versions for a package"))
+                                         ])
 
     verOption = infoOption verMsg (long "version" <> help "output version information and exit")
       where
@@ -402,6 +426,23 @@ mainWithOptions Options {..} = do
                    True ->
                        putStrLn ("WARNING: skipped existing " ++ fn)
 
+           return ()
+
+       ListCabal (ListCOptions {..}) -> do
+           let pkgn = optLCPkgName
+
+           vs <- runHConn (fetchVersions pkgn)
+
+           putStrLn $ concat [ "Found ", show (length vs), " package versions for "
+                             , show pkgn, " ([U]npreferred, [D]eprecated):"
+                             ]
+
+           forM_ vs $ \(v,unp) -> do
+               let status = case unp of
+                       Normal      -> "    "
+                       Deprecated  -> "[D] "
+                       UnPreferred -> "[U] "
+               BS8.putStrLn $ status <> pkgn <> "-" <> v
            return ()
 
        PushCabal (PushCOptions {..}) -> do
