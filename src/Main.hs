@@ -106,12 +106,13 @@ hackagePostCabal cred (pkgn,pkgv) rawcab dry = do
         uncurry setAuthorizationBasic cred
         setAccept "application/json" -- wishful thinking
         setContentType ("multipart/form-data; boundary="<>boundary) -- RFC2388
+        setContentLength bodyLen
 
     c <- reOpenHConn
 
     liftIO $ sendRequest c q1 (bsBody body)
 
-    resp <- liftIO $ try (receiveResponse c concatHandler)
+    resp <- liftIO $ try (receiveResponse c concatHandler')
     closeHConn
 
     case resp of
@@ -119,28 +120,25 @@ hackagePostCabal cred (pkgn,pkgv) rawcab dry = do
             -- liftIO $ BS.writeFile "raw.out" bs
             return (BS8.unlines [ h2 <> ":\n" <> renderTags ts | (h2, ts) <- scrape200 bs ])
 
-        Left (HttpClientError _code bs) -> -- do
+        Left e@HttpClientError {} -> -- do
             -- Hackage currently timeouts w/ 503 guru meditation errors,
             -- which usually means that the transaction has succeeded
             -- liftIO $ BS.writeFile "raw.out" bs
-            return bs
+            return (BS8.pack $ show e)
   where
     urlpath = mconcat [ "/package/", pkgn, "-", pkgv, "/", pkgn, ".cabal/edit" ]
 
     isDry DryRun = True
     isDry WetRun = False
 
-    body = mconcat -- RFC2388
-           [ "--", boundary, "\r\n"
-           , "Content-Disposition: form-data; name=", "\"", if isDry dry then "review" else "publish", "\"", "\r\n"
-           , "\r\n"
-           , if isDry dry then "Review changes" else "Publish new revision", "\r\n"
-           , "--", boundary, "\r\n"
-           , "Content-Disposition: form-data; name=\"cabalfile\"", "\r\n"
-           , "\r\n"
-           , rawcab, "\r\n"
-           , "--", boundary, "--", "\r\n"
+    body = Builder.toByteString $ multiPartBuilder boundary
+           [ ("cabalfile",[],[],rawcab)
+           , if isDry dry
+             then ("review", [],[],"Review changes")
+             else ("publish",[],[],"Publish new revision")
            ]
+
+    bodyLen = fromIntegral $ BS.length body
 
     boundary = "4d5bb1565a084d78868ff0178bdf4f61"
 
@@ -535,8 +533,11 @@ mainWithOptions Options {..} = do
                rawcab <- editCab <$> BS.readFile fn
                tmp <- runHConn (hackagePostCabal (username,password) (pkgn,pkgv) rawcab
                                                  (if optPCDry then DryRun else WetRun))
-               BS8.putStrLn tmp
 
+               putStrLn "Hackage response was:"
+               putStrLn (replicate 80 '=')
+               BS8.putStrLn (fst $ BS8.spanEnd isSpace tmp)
+               putStrLn (replicate 80 '=')
 
        PushCandidate (PushPCOptions {..}) -> do
            (username,password) <- maybe (fail "missing Hackage credentials") return =<< getHackageCreds
@@ -547,6 +548,7 @@ mainWithOptions Options {..} = do
                rawtar <- BS.readFile fn
                putStrLn $ "uplading to Hackage..."
                tmp <- runHConn (hackagePushCandidate (username,password) (takeFileName fn, rawtar))
+
                putStrLn "Hackage response was:"
                putStrLn (replicate 80 '=')
                BS8.putStrLn tmp
