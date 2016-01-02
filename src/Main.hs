@@ -17,6 +17,8 @@ import           Data.Bits
 import           Data.ByteString                       (ByteString)
 import qualified Data.ByteString                       as BS
 import qualified Data.ByteString.Char8                 as BS8
+import qualified Data.ByteString.Lazy                  as BSL
+import qualified Data.ByteString.Search                as BSS
 import           Data.Char                             (isSpace, toLower)
 import           Data.List.Split
 import           Data.Maybe
@@ -35,7 +37,6 @@ import           System.Directory
 import           System.FilePath
 import qualified System.IO.Streams                     as Streams
 import           Text.HTML.TagSoup
-
 import qualified Paths_hackage_cli
 
 type PkgName = ByteString
@@ -536,7 +537,7 @@ mainWithOptions Options {..} = do
 
                putStrLn "Hackage response was:"
                putStrLn (replicate 80 '=')
-               BS8.putStrLn (fst $ BS8.spanEnd isSpace tmp)
+               BS8.putStrLn (tidyHtml tmp)
                putStrLn (replicate 80 '=')
 
        PushCandidate (PushPCOptions {..}) -> do
@@ -581,3 +582,22 @@ mainWithOptions Options {..} = do
       where
         C.PackageIdentifier (C.PackageName pkgn) pkgv = C.package . C.packageDescription $ pdesc
         xrev = fromMaybe "0" . lookup "x-revision" . C.customFieldsPD . C.packageDescription $ pdesc
+
+-- | Try to clean-up HTML fragments to be more readable
+tidyHtml :: ByteString -> ByteString
+tidyHtml =
+    replace "&amp;"  "&"     . -- must be last entity substitution
+    replace "&gt;"   ">"     .
+    replace "&lt;"   "<"     .
+    replace "<p>"    ""      . -- tags must be replaced before entities
+    replace "</p>"   "\n"    .
+    replace "<li>"   "\n * " .
+    replace "</li>"  ""      .
+    replace "</pre>" "`"     .
+    replace "<pre>"  "`"     .
+    stripEnd
+  where
+    stripEnd = fst . BS8.spanEnd isSpace
+
+    replace :: ByteString -> ByteString -> ByteString -> ByteString
+    replace old new = BSL.toStrict . BSS.replace old new
