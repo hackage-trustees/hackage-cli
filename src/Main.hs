@@ -24,6 +24,7 @@ import qualified Data.List                             as List
 import           Data.List.Split
 import           Data.Maybe
 import           Data.Monoid
+import           Data.Time.Clock.POSIX                 (getPOSIXTime)
 import           Data.Version                          (showVersion)
 import qualified Distribution.Package                  as C
 import qualified Distribution.PackageDescription       as C
@@ -40,6 +41,7 @@ import           System.Directory
 import           System.FilePath
 import qualified System.IO.Streams                     as Streams
 import           Text.HTML.TagSoup
+import           Text.Printf                           (printf)
 import qualified Paths_hackage_cli
 
 type PkgName = ByteString
@@ -556,10 +558,10 @@ mainWithOptions Options {..} = do
                let editCab | optPCIncrRev = cabalEditXRev (xrev+1)
                            | otherwise    = id
                rawcab <- editCab <$> BS.readFile fn
-               tmp <- runHConn (hackagePostCabal (username,password) (pkgn,pkgv) rawcab
-                                                 (if optPCDry then DryRun else WetRun))
+               (dt,tmp) <- timeIt $ runHConn (hackagePostCabal (username,password) (pkgn,pkgv) rawcab
+                                                               (if optPCDry then DryRun else WetRun))
 
-               putStrLn "Hackage response was:"
+               printf "Hackage response was (after %.3f secs):\n" dt
                putStrLn (replicate 80 '=')
                BS8.putStrLn (tidyHtml tmp)
                putStrLn (replicate 80 '=')
@@ -625,3 +627,15 @@ tidyHtml =
 
     replace :: ByteString -> ByteString -> ByteString -> ByteString
     replace old new = BSL.toStrict . BSS.replace old new
+
+
+timeIt :: IO a -> IO (Double, a)
+timeIt act = do
+    t0  <- getTime
+    res <- act
+    t1  <- getTime
+    let !dt = t1 - t0
+    pure (dt, res)
+  where
+    getTime :: IO Double
+    getTime = realToFrac `fmap` getPOSIXTime
