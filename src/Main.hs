@@ -20,6 +20,7 @@ import qualified Data.ByteString.Char8                 as BS8
 import qualified Data.ByteString.Lazy                  as BSL
 import qualified Data.ByteString.Search                as BSS
 import           Data.Char                             (isSpace, toLower)
+import qualified Data.List                             as List
 import           Data.List.Split
 import           Data.Maybe
 import           Data.Monoid
@@ -28,6 +29,8 @@ import qualified Distribution.Package                  as C
 import qualified Distribution.PackageDescription       as C
 import qualified Distribution.PackageDescription.Parse as C
 import qualified Distribution.Verbosity                as C
+import qualified Distribution.Version                  as C
+import qualified Distribution.Text                     as C
 import           Network.Http.Client
 import           Network.NetRc
 import           Numeric.Natural                       (Natural)
@@ -42,6 +45,13 @@ import qualified Paths_hackage_cli
 type PkgName = ByteString
 type PkgVer  = ByteString
 type PkgRev  = Word
+
+
+pkgVerToVersion :: PkgVer -> C.Version
+pkgVerToVersion = fromMaybe (error "invalid version") . C.simpleParse . BS8.unpack
+
+pkgVerInRange :: PkgVer -> C.VersionRange -> Bool
+pkgVerInRange v vr = pkgVerToVersion v `C.withinRange` vr
 
 type HIO = StateT HConn IO
 
@@ -321,12 +331,15 @@ cabalEditXRev xrev oldcab = BS8.unlines ls'
         (_,[]) -> error "cabalEditXRev: unsupported cabal grammar; version field not found"
         (xs,v:ys) -> xs ++ v:xrevLine:ys
 
-fetchAllCabalFiles :: PkgName -> HIO [(PkgVer,ByteString)]
-fetchAllCabalFiles pkgn = do
+fetchAllCabalFiles :: PkgName -> C.VersionRange -> HIO [(PkgVer,Maybe ByteString)]
+fetchAllCabalFiles pkgn vrange = do
     vs <- fetchVersions pkgn
     liftIO $ putStrLn ("Found " ++ show (length vs) ++ " package versions for " ++ show pkgn ++ ", downloading now...")
-    fetchCabalFiles pkgn (map fst vs)
-    -- forM vs $ \v -> (,) v <$> fetchCabalFile c pkgn v
+
+    let (wanted,unwanted) = List.partition (`pkgVerInRange` vrange) (map fst vs)
+
+    fetched <- map (fmap Just) <$> fetchCabalFiles pkgn wanted
+    pure (List.sortOn (pkgVerToVersion . fst) (fetched ++ [ (v,Nothing) | v <- unwanted ]))
 
 data PkgVerStatus = Normal | UnPreferred | Deprecated deriving Eq
 instance NFData PkgVerStatus where rnf !_ = ()
@@ -409,6 +422,7 @@ data Options = Options
 
 data PullCOptions = PullCOptions
   { optPCPkgName :: PkgName
+  , optPCPkgVers :: Maybe C.VersionRange
   } deriving Show
 
 data ListCOptions = ListCOptions
@@ -447,8 +461,16 @@ optionsParserInfo
   where
     bstr = BS8.pack <$> str
 
+    vrange = do
+        s <- str
+        case C.simpleParse s of
+            Nothing -> fail "invalid version range"
+            Just vr -> pure vr
+
     listcoParser = ListCabal . ListCOptions <$> OA.argument bstr (metavar "PKGNAME")
-    pullcoParser = PullCabal . PullCOptions <$> OA.argument bstr (metavar "PKGNAME")
+    pullcoParser = PullCabal <$>
+        (PullCOptions <$> OA.argument bstr (metavar "PKGNAME")
+                      <*> optional (OA.argument vrange (metavar "VERSION-CONSTRAINT")))
     pushcoParser = PushCabal <$> (PushCOptions
                                   <$> switch (long "incr-rev" <> help "increment x-revision field")
                                   <*> switch (long "dry"      <> help "upload in review-mode")
@@ -487,9 +509,11 @@ mainWithOptions Options {..} = do
        PullCabal (PullCOptions {..}) -> do
            let pkgn = optPCPkgName
 
-           cs <- runHConn (fetchAllCabalFiles pkgn)
+           cs <- runHConn (fetchAllCabalFiles pkgn (fromMaybe C.anyVersion optPCPkgVers))
 
-           forM_ cs $ \(v,raw) -> do
+           forM_ cs $ \(v,mraw) -> case mraw of
+             Nothing -> putStrLn ("skipped excluded " ++ BS8.unpack v)
+             Just raw -> do
                let fn = BS8.unpack $ pkgn <> "-" <> v <> ".cabal"
 
                doesFileExist fn >>= \case
