@@ -32,17 +32,23 @@ import qualified Distribution.PackageDescription.Parse as C
 import qualified Distribution.Verbosity                as C
 import qualified Distribution.Version                  as C
 import qualified Distribution.Text                     as C
+import qualified Distribution.Simple.Utils             as C
 import           Network.Http.Client
 import           Network.NetRc
 import           Numeric.Natural                       (Natural)
 import           OpenSSL                               (withOpenSSL)
 import           Options.Applicative                   as OA
 import           System.Directory
+import           System.Exit                           (exitFailure)
 import           System.FilePath
 import qualified System.IO.Streams                     as Streams
 import           Text.HTML.TagSoup
 import           Text.Printf                           (printf)
 import qualified Paths_hackage_cli
+
+-- import Cabal
+
+import Distribution.Server.Util.CabalRevisions
 
 type PkgName = ByteString
 type PkgVer  = ByteString
@@ -93,6 +99,34 @@ hackageSendGET p a = do
     c <- openHConn
     liftIO $ sendRequest c q1 emptyBody
     hcReqCnt += 1
+
+hackagePutTgz :: ByteString -> ByteString -> HIO ByteString
+hackagePutTgz p tgz = do
+    q1 <- liftIO $ buildRequest $ do
+        http PUT p
+        setUA
+        -- setAccept "application/json" -- wishful thinking
+        setContentType "application/x-tar"
+        -- setContentEncoding "gzip"
+        setContentLength (fromIntegral $ BS.length tgz)
+
+    lft <- use hcReqLeft
+    unless (lft > 0) $
+        fail "hackagePutTgz: request budget exhausted for current connection"
+
+    c <- openHConn
+    liftIO $ sendRequest c q1 (bsBody tgz)
+    resp <- liftIO $ try (receiveResponse c concatHandler')
+    closeHConn
+    hcReqCnt += 1
+
+    case resp of
+        Right bs -> -- do
+            -- liftIO $ BS.writeFile "raw.out" bs
+            return bs
+
+        Left e@HttpClientError {} -> -- do
+            return (BS8.pack $ show e)
 
 hackageRecvResp :: HIO ByteString
 hackageRecvResp = do
@@ -441,11 +475,17 @@ data PushPCOptions = PushPCOptions
   { optPPCFiles :: [FilePath]
   } deriving Show
 
+data CheckROptions = CheckROptions
+  { optCRNew  :: FilePath
+  , optCROrig :: FilePath
+  } deriving Show
+
 data Command
     = ListCabal !ListCOptions
     | PullCabal !PullCOptions
     | PushCabal !PushCOptions
     | PushCandidate !PushPCOptions
+    | CheckRevision !CheckROptions
     deriving Show
 
 optionsParserInfo :: ParserInfo Options
@@ -480,6 +520,9 @@ optionsParserInfo
 
     pushpcoParser = PushCandidate <$> (PushPCOptions <$> some (OA.argument str (metavar "TARBALLS...")))
 
+    checkrevParsser = CheckRevision <$> (CheckROptions <$> OA.argument str (metavar "NEWCABAL")
+                                                       <*> OA.argument str (metavar "OLDCABAL"))
+
     oParser
         = Options <$> switch (long "verbose" <> help "enable verbose output")
                   <*> option bstr (long "hostname"  <> metavar "HOSTNAME" <> value "hackage.haskell.org"
@@ -492,6 +535,8 @@ optionsParserInfo
                                                    (progDesc "upload package candidate(s)"))
                                          , command "list-versions" (info (helper <*> listcoParser)
                                                    (progDesc "list versions for a package"))
+                                         , command "check-revision" (info (helper <*> checkrevParsser)
+                                                   (progDesc "validate revision"))
                                          ])
 
     verOption = infoOption verMsg (long "version" <> help "output version information and exit")
@@ -580,6 +625,30 @@ mainWithOptions Options {..} = do
                putStrLn (replicate 80 '=')
                BS8.putStrLn tmp
                putStrLn (replicate 80 '=')
+
+
+       CheckRevision (CheckROptions {..}) -> do
+           old <- C.readUTF8File optCROrig
+           new <- C.readUTF8File optCRNew
+
+           case diffCabalRevisions old new of
+               Left err -> do
+                   putStrLn "change not allowed:"
+                   putStrLn err
+                   exitFailure
+
+               Right [] -> do
+                   putStrLn "no-op change detected"
+                   exitFailure
+
+               Right changes -> do
+                   putStrLn "change allowed:"
+                   forM_ changes $ \(Change what old' new') -> do
+                       putStrLn $ "what: " ++ what
+                       putStrLn $ " old: " ++ old'
+                       putStrLn $ " new: " ++ new'
+
+           return ()
 
    return ()
   where
