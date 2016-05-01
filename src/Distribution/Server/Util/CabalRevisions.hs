@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- |
@@ -147,6 +148,9 @@ checkPackageDescriptions
      copyrightA maintainerA authorA stabilityA testedWithA homepageA
      pkgUrlA bugReportsA sourceReposA synopsisA descriptionA
      categoryA customFieldsA _buildDependsA _specVersionRawA buildTypeA
+#if MIN_VERSION_Cabal(1,24,0)
+     _setupBuildInfoA -- TODO
+#endif
      _libraryA _executablesA _testSuitesA _benchmarksA dataFilesA dataDirA
      extraSrcFilesA extraTmpFilesA extraDocFilesA)
   pdB@(PackageDescription
@@ -154,6 +158,9 @@ checkPackageDescriptions
      copyrightB maintainerB authorB stabilityB testedWithB homepageB
      pkgUrlB bugReportsB sourceReposB synopsisB descriptionB
      categoryB customFieldsB _buildDependsB _specVersionRawB buildTypeB
+#if MIN_VERSION_Cabal(1,24,0)
+     _setupBuildInfoB -- TODO
+#endif
      _libraryB _executablesB _testSuitesB _benchmarksB dataFilesB dataDirB
      extraSrcFilesB extraTmpFilesB extraDocFilesB)
   = do
@@ -258,8 +265,7 @@ checkDependencies _ [] [dep@(Dependency (PackageName "base") _)] =
 
 checkDependencies componentName ds1 ds2 =
     fmapCheck canonicaliseDeps
-      (checkList "Cannot add or remove dependencies, \
-                \just change the version constraints"
+      (checkList "Cannot add or remove dependencies, just change the version constraints"
                 (checkDependency componentName))
       ds1 ds2
   where
@@ -278,8 +284,7 @@ checkDependency componentName (Dependency pkgA verA) (Dependency pkgB verB)
                               " component's dependency on " ++ display pkgA)
                              display
                              verA verB
-  | otherwise    = fail "Cannot change which packages are dependencies, \
-                        \just their version constraints."
+  | otherwise    = fail "Cannot change which packages are dependencies, just their version constraints."
 
 checkLibrary :: ComponentName -> Check Library
 checkLibrary componentName
@@ -322,8 +327,7 @@ checkBuildInfo componentName biA biB = do
               display
               (otherExtensions biA) (otherExtensions biB)
 
-    checkSame "Cannot change build information \
-              \(just the dependency version constraints)"
+    checkSame "Cannot change build information (just the dependency version constraints)"
               (biA { targetBuildDepends = [], otherExtensions = [] })
               (biB { targetBuildDepends = [], otherExtensions = [] })
 
