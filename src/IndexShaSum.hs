@@ -70,7 +70,9 @@ run (IndexShaSumOptions {..}) = do
       | takeFileName fn == "package.json"
       , Tar.NormalFile bs _sz <- Tar.entryContent e
       = let (fn',cksum) = fromMaybe undefined (decodePkgJsonFile bs)
-        in (fn',cksum) : go (Set.insert fn' seen1) seen2 es
+        in if Set.member fn' seen1
+           then go seen1 seen2 es
+           else ((fn',cksum) : go (Set.insert fn' seen1) seen2 es)
       | otherwise = go seen1 seen2 es
       where
         fn = Tar.entryPath e
