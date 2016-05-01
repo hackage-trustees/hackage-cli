@@ -5,6 +5,11 @@
 {-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE ViewPatterns      #-}
 
+-- |
+-- Module      :  Main
+-- Copyright   :  Herbert Valerio Riedel
+-- License     :  GPL-3
+--
 module Main where
 
 import qualified Blaze.ByteString.Builder              as Builder
@@ -49,6 +54,7 @@ import qualified Paths_hackage_cli
 -- import Cabal
 
 import Distribution.Server.Util.CabalRevisions
+import IndexShaSum
 
 type PkgName = ByteString
 type PkgVer  = ByteString
@@ -486,6 +492,7 @@ data Command
     | PushCabal !PushCOptions
     | PushCandidate !PushPCOptions
     | CheckRevision !CheckROptions
+    | IndexShaSum   !IndexShaSumOptions
     deriving Show
 
 optionsParserInfo :: ParserInfo Options
@@ -523,6 +530,11 @@ optionsParserInfo
     checkrevParsser = CheckRevision <$> (CheckROptions <$> OA.argument str (metavar "NEWCABAL")
                                                        <*> OA.argument str (metavar "OLDCABAL"))
 
+
+    indexssParser = IndexShaSum <$> (IndexShaSumOptions <$> switch (long "flat" <> help "flat filesystem layout (used by mirrors)")
+                                                        <*> OA.argument str (metavar "INDEX-TAR")
+                                                        <*> optional (OA.argument str (metavar "BASEDIR")))
+
     oParser
         = Options <$> switch (long "verbose" <> help "enable verbose output")
                   <*> option bstr (long "hostname"  <> metavar "HOSTNAME" <> value "hackage.haskell.org"
@@ -537,6 +549,8 @@ optionsParserInfo
                                                    (progDesc "list versions for a package"))
                                          , command "check-revision" (info (helper <*> checkrevParsser)
                                                    (progDesc "validate revision"))
+                                         , command "index-sha256sum" (info (helper <*> indexssParser)
+                                                   (progDesc "generate sha256sum-format file"))
                                          ])
 
     verOption = infoOption verMsg (long "version" <> help "output version information and exit")
@@ -649,6 +663,9 @@ mainWithOptions Options {..} = do
                        putStrLn $ " new: " ++ new'
 
            return ()
+
+       IndexShaSum opts -> IndexShaSum.run opts
+
 
    return ()
   where

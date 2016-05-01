@@ -26,15 +26,17 @@ executable hackage-cli
   main-is:             Main.hs
 
   other-modules:
+    IndexShaSum
     Distribution.Server.Util.CabalRevisions
     Paths_hackage_cli
 
   build-depends:
     Cabal                  >=1.22 && <1.25,
     HsOpenSSL              >=0.11 && <0.12,
+    aeson                  >=0.11 && <0.12,
     base                   >=4.8  && <4.10,
     blaze-builder          >=0.3  && <0.5,
-    bytestring             >=0.10 && <0.11,
+    bytestring             >=0.10.4 && <0.11,
     containers             >=0.5  && <0.6,
     deepseq                >=1.4  && <1.5,
     directory              >=1.2  && <1.3,
@@ -49,6 +51,10 @@ executable hackage-cli
     split                  >=0.2  && <0.3,
     stringsearch           >=0.3.6 && <0.4,
     tagsoup                >=0.13 && <0.14,
-    time                   >=1.5  && <1.7
+    tar                    >=0.5  && <0.6,
+    text                   >=1.2  && <1.3,
+    time                   >=1.5  && <1.7,
+    unordered-containers   >=0.2.7&& <0.3,
+    zlib                   >=0.6.1 && <0.7
 
   ghc-options: -Wall -threaded
