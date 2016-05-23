@@ -383,17 +383,23 @@ fetchAllCabalFiles pkgn vrange = do
     fetched <- map (fmap Just) <$> fetchCabalFiles pkgn wanted
     pure (List.sortOn (pkgVerToVersion . fst) (fetched ++ [ (v,Nothing) | v <- unwanted ]))
 
-data PkgVerStatus = Normal | UnPreferred | Deprecated deriving Eq
+data PkgVerStatus = Normal | UnPreferred | Deprecated deriving (Eq,Show)
 instance NFData PkgVerStatus where rnf !_ = ()
 
 scrapeVersions :: ByteString -> [(PkgVer,PkgVerStatus)]
 scrapeVersions html = force vs
   where
-    [vs] = mapMaybe getVerRow $ partitions (== TagOpen "tr" []) $ parseTags html
+    [vs] = mapMaybe (getVerRow . stripWhiteText) $ partitions (== TagOpen "tr" []) $ parseTags html
 
     getVerRow (TagOpen "tr" _ : TagOpen "th" _ : TagText "Versions" : TagClose "th" : TagOpen "td" _ : ts)
         | ts' <- trimVerRow ts = Just (map go $ chunksOf 4 ts')
     getVerRow _ = Nothing
+
+    stripWhiteText = filter (not . isWhiteText)
+
+    isWhiteText :: Tag ByteString -> Bool
+    isWhiteText (TagText s) = BS8.all isSpace s
+    isWhiteText _           = False
 
     go [TagOpen "a" attr, TagText verStr, TagClose "a", TagText ", "] = (verStr,isPref attr)
     go [TagOpen "strong" attr, TagText verStr, TagClose "strong"] = (verStr,isPref attr)
