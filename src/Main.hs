@@ -663,7 +663,7 @@ mainWithOptions Options {..} = do
 
                Right changes -> do
                    putStrLn "change allowed:"
-                   forM_ changes $ \(Change what old' new') -> do
+                   forM_ changes $ \(Change _ what old' new') -> do
                        putStrLn $ "what: " ++ what
                        putStrLn $ " old: " ++ old'
                        putStrLn $ " new: " ++ new'
