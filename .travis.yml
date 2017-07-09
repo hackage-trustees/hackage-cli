@@ -22,9 +22,9 @@ before_cache:
 
 matrix:
   include:
-    - env: CABALVER=head GHCVER=8.0.1
-      compiler: ": #GHC 8.0.1"
-      addons: {apt: {packages: [cabal-install-head,ghc-8.0.1,libssl-dev], sources: [hvr-ghc]}}
+    - env: CABALVER=head GHCVER=8.2.1
+      compiler: ": #GHC 8.2.1"
+      addons: {apt: {packages: [cabal-install-head,ghc-8.2.1,libssl-dev], sources: [hvr-ghc]}}
 
 before_install:
  - unset CC

@@ -30,7 +30,6 @@ import           Data.List.Split
 import           Data.Maybe
 import           Data.Monoid
 import           Data.Time.Clock.POSIX                 (getPOSIXTime)
-import           Data.Version                          (showVersion)
 import qualified Distribution.Package                  as C
 import qualified Distribution.PackageDescription       as C
 import qualified Distribution.PackageDescription.Parse as C
@@ -50,6 +49,7 @@ import qualified System.IO.Streams                     as Streams
 import           Text.HTML.TagSoup
 import           Text.Printf                           (printf)
 import qualified Paths_hackage_cli
+import qualified Data.Version as V
 
 -- import Cabal
 
@@ -60,6 +60,8 @@ type PkgName = ByteString
 type PkgVer  = ByteString
 type PkgRev  = Word
 
+showVersion :: C.Version -> String
+showVersion = C.display
 
 pkgVerToVersion :: PkgVer -> C.Version
 pkgVerToVersion = fromMaybe (error "invalid version") . C.simpleParse . BS8.unpack
@@ -89,7 +91,7 @@ hcReqLeft = hcReqCnt . to f
 setUA :: RequestBuilder ()
 setUA = setHeader "User-Agent" uaStr
   where
-    uaStr = "hackage-cli/" <> BS8.pack (showVersion Paths_hackage_cli.version)
+    uaStr = "hackage-cli/" <> BS8.pack (V.showVersion Paths_hackage_cli.version)
 
 hackageSendGET :: ByteString -> ByteString -> HIO ()
 hackageSendGET p a = do
@@ -561,7 +563,7 @@ optionsParserInfo
 
     verOption = infoOption verMsg (long "version" <> help "output version information and exit")
       where
-        verMsg = "hackage-cli " <> showVersion Paths_hackage_cli.version
+        verMsg = "hackage-cli " <> V.showVersion Paths_hackage_cli.version
 
 ----------------------------------------------------------------------------
 
@@ -614,7 +616,7 @@ mainWithOptions Options {..} = do
            putStrLn $ "Using Hackage credentials for username " ++ show username
 
            forM_ optPCFiles $ \fn -> do
-               (pkgn,pkgv,xrev) <- pkgDescToPkgIdXrev <$> C.readPackageDescription C.deafening fn
+               (pkgn,pkgv,xrev) <- pkgDescToPkgIdXrev <$> C.readGenericPackageDescription C.deafening fn
                putStrLn $ concat [ "Pushing ", show fn
                                  , " (", BS8.unpack pkgn, "-", BS8.unpack pkgv, "~", show xrev, ")"
                                  , if optPCDry then " [review-mode]" else "", " ..."
@@ -698,7 +700,7 @@ mainWithOptions Options {..} = do
 
     pkgDescToPkgIdXrev pdesc = force (BS8.pack pkgn, BS8.pack $ showVersion pkgv, read xrev :: PkgRev)
       where
-        C.PackageIdentifier (C.PackageName pkgn) pkgv = C.package . C.packageDescription $ pdesc
+        C.PackageIdentifier (C.unPackageName -> pkgn) pkgv = C.package . C.packageDescription $ pdesc
         xrev = fromMaybe "0" . lookup "x-revision" . C.customFieldsPD . C.packageDescription $ pdesc
 
 -- | Try to clean-up HTML fragments to be more readable

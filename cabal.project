@@ -1,1 +1,10 @@
 packages: .
+
+-- with-compiler: ghc-8.2.1
+
+-- In order to build hackage-cli w/ an unreleased Cabal-2.x (NB: this builds fine w/ GHC 8.2.1 and its bundled Cabal-2.0):
+--  1. `cabal get -s Cabal`
+--  2. uncomment the 2 lines below (the constraints-line is a hack to avoid `setup`-components picking up the local Cabal package)
+
+-- packages: Cabal/Cabal
+-- constraints: setup.Cabal < 2
