@@ -471,8 +471,10 @@ data Options = Options
   } deriving Show
 
 data PullCOptions = PullCOptions
-  { optPCPkgName :: PkgName
-  , optPCPkgVers :: Maybe C.VersionRange
+  { optPlCPkgName :: !PkgName
+  , optPlCIncrRev :: !Bool
+  , optPlCForce   :: !Bool
+  , optPlCPkgVers :: Maybe C.VersionRange
   } deriving Show
 
 data ListCOptions = ListCOptions
@@ -481,9 +483,9 @@ data ListCOptions = ListCOptions
   } deriving Show
 
 data PushCOptions = PushCOptions
-  { optPCIncrRev :: !Bool
-  , optPCDry     :: !Bool
-  , optPCFiles   :: [FilePath]
+  { optPsCIncrRev :: !Bool
+  , optPsCDry     :: !Bool
+  , optPsCFiles   :: [FilePath]
   } deriving Show
 
 data PushPCOptions = PushPCOptions
@@ -531,7 +533,10 @@ optionsParserInfo
 
     pullcoParser = PullCabal <$>
         (PullCOptions <$> OA.argument bstr (metavar "PKGNAME")
+                      <*> switch (long "incr-rev" <> help "increment x-revision field")
+                      <*> switch (long "force" <> help "force overwriting existing files")
                       <*> optional (OA.argument vrange (metavar "VERSION-CONSTRAINT")))
+
     pushcoParser = PushCabal <$> (PushCOptions
                                   <$> switch (long "incr-rev" <> help "increment x-revision field")
                                   <*> switch (long "dry"      <> help "upload in review-mode")
@@ -580,21 +585,29 @@ mainWithOptions :: Options -> IO ()
 mainWithOptions Options {..} = do
    case optCommand of
        PullCabal (PullCOptions {..}) -> do
-           let pkgn = optPCPkgName
+           let pkgn = optPlCPkgName
 
-           cs <- runHConn (fetchAllCabalFiles pkgn (fromMaybe C.anyVersion optPCPkgVers))
+           cs <- runHConn (fetchAllCabalFiles pkgn (fromMaybe C.anyVersion optPlCPkgVers))
 
            forM_ cs $ \(v,mraw) -> case mraw of
              Nothing -> putStrLn ("skipped excluded " ++ BS8.unpack v)
-             Just raw -> do
+             Just raw0 -> do
                let fn = BS8.unpack $ pkgn <> "-" <> v <> ".cabal"
+
+               let raw | optPlCIncrRev = incrXrev raw0
+                       | otherwise     = raw0
 
                doesFileExist fn >>= \case
                    False -> do
                        BS.writeFile fn raw
                        putStrLn ("saved " ++ fn ++ " (" ++ show (BS.length raw) ++ " bytes)")
                    True ->
-                       putStrLn ("WARNING: skipped existing " ++ fn)
+                       if optPlCForce
+                       then do
+                         BS.writeFile fn raw
+                         putStrLn ("overwritten " ++ fn ++ " (" ++ show (BS.length raw) ++ " bytes)")
+                       else
+                         putStrLn ("WARNING: skipped existing " ++ fn ++ " (use --force to overwrite)")
 
            return ()
 
@@ -624,18 +637,19 @@ mainWithOptions Options {..} = do
            (username,password) <- maybe (fail "missing Hackage credentials") return =<< getHackageCreds
            putStrLn $ "Using Hackage credentials for username " ++ show username
 
-           forM_ optPCFiles $ \fn -> do
+           forM_ optPsCFiles $ \fn -> do
                (pkgn,pkgv,xrev) <- pkgDescToPkgIdXrev <$> C.readGenericPackageDescription C.deafening fn
                putStrLn $ concat [ "Pushing ", show fn
                                  , " (", BS8.unpack pkgn, "-", BS8.unpack pkgv, "~", show xrev, ")"
-                                 , if optPCDry then " [review-mode]" else "", " ..."
+                                 , if optPsCDry then " [review-mode]" else "", " ..."
                                  ]
 
-               let editCab | optPCIncrRev = cabalEditXRev (xrev+1)
+               let editCab | optPsCIncrRev = cabalEditXRev (xrev+1)
                            | otherwise    = id
+
                rawcab <- editCab <$> BS.readFile fn
                (dt,tmp) <- timeIt $ runHConn (hackagePostCabal (username,password) (pkgn,pkgv) rawcab
-                                                               (if optPCDry then DryRun else WetRun))
+                                                               (if optPsCDry then DryRun else WetRun))
 
                printf "Hackage response was (after %.3f secs):\n" dt
                putStrLn (replicate 80 '=')
@@ -711,6 +725,17 @@ mainWithOptions Options {..} = do
       where
         C.PackageIdentifier (C.unPackageName -> pkgn) pkgv = C.package . C.packageDescription $ pdesc
         xrev = fromMaybe "0" . lookup "x-revision" . C.customFieldsPD . C.packageDescription $ pdesc
+
+    incrXrev :: ByteString -> ByteString
+    incrXrev cabdata0 = cabalEditXRev (xrev0+1) cabdata0
+      where
+        pdesc0 = parseGenericPackageDescription' (C.fromUTF8BS cabdata0)
+        (_,_,xrev0) = pkgDescToPkgIdXrev pdesc0
+
+
+    parseGenericPackageDescription' bs = case C.parseGenericPackageDescription bs of
+                                            C.ParseFailed e -> error (show e)
+                                            C.ParseOk _ x -> x
 
 -- | Try to clean-up HTML fragments to be more readable
 tidyHtml :: ByteString -> ByteString
