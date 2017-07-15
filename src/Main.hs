@@ -476,7 +476,8 @@ data PullCOptions = PullCOptions
   } deriving Show
 
 data ListCOptions = ListCOptions
-  { optLCPkgName :: PkgName
+  { optLCPkgName :: !PkgName
+  , optRevUrls   :: !Bool
   } deriving Show
 
 data PushCOptions = PushCOptions
@@ -524,7 +525,10 @@ optionsParserInfo
             Nothing -> fail "invalid version range"
             Just vr -> pure vr
 
-    listcoParser = ListCabal . ListCOptions <$> OA.argument bstr (metavar "PKGNAME")
+    listcoParser = ListCabal <$>
+        (ListCOptions <$> OA.argument bstr (metavar "PKGNAME")
+                      <*> switch (long "rev-urls" <> help "list revision URLs"))
+
     pullcoParser = PullCabal <$>
         (PullCOptions <$> OA.argument bstr (metavar "PKGNAME")
                       <*> optional (OA.argument vrange (metavar "VERSION-CONSTRAINT")))
@@ -603,12 +607,17 @@ mainWithOptions Options {..} = do
                              , show pkgn, " ([U]npreferred, [D]eprecated):"
                              ]
 
-           forM_ vs $ \(v,unp) -> do
-               let status = case unp of
-                       Normal      -> "    "
-                       Deprecated  -> "[D] "
-                       UnPreferred -> "[U] "
-               BS8.putStrLn $ status <> pkgn <> "-" <> v
+           if optRevUrls then do
+             forM_ vs $ \(v,_) -> do
+                 let pid = pkgn <> "-" <> v
+                 BS8.putStrLn $ mconcat [ " - https://hackage.haskell.org/package/", pid, "/revisions/" ]
+           else do
+             forM_ vs $ \(v,unp) -> do
+                 let status = case unp of
+                         Normal      -> "    "
+                         Deprecated  -> "[D] "
+                         UnPreferred -> "[U] "
+                 BS8.putStrLn $ status <> pkgn <> "-" <> v
            return ()
 
        PushCabal (PushCOptions {..}) -> do
