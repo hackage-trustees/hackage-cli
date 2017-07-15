@@ -477,6 +477,12 @@ data PullCOptions = PullCOptions
   , optPlCPkgVers :: Maybe C.VersionRange
   } deriving Show
 
+data SyncCOptions = SyncCOptions
+  { optSyCFile    :: FilePath
+  , optSyCIncrRev :: !Bool
+  , optSyCForce   :: !Bool
+  } deriving Show
+
 data ListCOptions = ListCOptions
   { optLCPkgName :: !PkgName
   , optRevUrls   :: !Bool
@@ -501,6 +507,7 @@ data Command
     = ListCabal !ListCOptions
     | PullCabal !PullCOptions
     | PushCabal !PushCOptions
+    | SyncCabal !SyncCOptions
     | PushCandidate !PushPCOptions
     | CheckRevision !CheckROptions
     | IndexShaSum   !IndexShaSumOptions
@@ -537,10 +544,15 @@ optionsParserInfo
                       <*> switch (long "force" <> help "force overwriting existing files")
                       <*> optional (OA.argument vrange (metavar "VERSION-CONSTRAINT")))
 
+    synccoParser = SyncCabal <$>
+        (SyncCOptions <$> OA.argument str (metavar "CABALFILE")
+                      <*> switch (long "incr-rev" <> help "increment x-revision field")
+                      <*> switch (long "force" <> help "force overwriting local file with older revision"))
+
     pushcoParser = PushCabal <$> (PushCOptions
-                                  <$> switch (long "incr-rev" <> help "increment x-revision field")
-                                  <*> switch (long "dry"      <> help "upload in review-mode")
-                                  <*> some (OA.argument str (metavar "CABALFILES...")))
+                             <$> switch (long "incr-rev" <> help "increment x-revision field")
+                             <*> switch (long "dry"      <> help "upload in review-mode")
+                             <*> some (OA.argument str (metavar "CABALFILES...")))
 
     pushpcoParser = PushCandidate <$> (PushPCOptions <$> some (OA.argument str (metavar "TARBALLS...")))
 
@@ -560,6 +572,8 @@ optionsParserInfo
                                                    (progDesc "download .cabal files for a package"))
                                          , command "push-cabal" (info (helper <*> pushcoParser)
                                                    (progDesc "upload revised .cabal files"))
+                                         , command "sync-cabal" (info (helper <*> synccoParser)
+                                                   (progDesc "upadate/sync local .cabal file with latest revision on Hackage"))
                                          , command "push-candidate" (info (helper <*> pushpcoParser)
                                                    (progDesc "upload package candidate(s)"))
                                          , command "list-versions" (info (helper <*> listcoParser)
@@ -610,6 +624,61 @@ mainWithOptions Options {..} = do
                          putStrLn ("WARNING: skipped existing " ++ fn ++ " (use --force to overwrite)")
 
            return ()
+
+       SyncCabal (SyncCOptions {..}) -> do
+           (pkgn,pkgv,xrev) <- pkgDescToPkgIdXrev <$> C.readGenericPackageDescription C.deafening optSyCFile
+           cab0 <- BS.readFile optSyCFile
+
+           BS8.putStrLn $ mconcat [ "local :  "
+                                  , pkgn, "-", pkgv, "-r", BS8.pack (show xrev)
+                                  , "   ('", BS8.pack optSyCFile, "')"
+                                  ]
+
+           cab' <- runHConn (fetchCabalFile pkgn pkgv)
+
+           let (pkgn',pkgv',xrev') = pkgDescToPkgIdXrev $ parseGenericPackageDescription' cab'
+
+           BS8.putStrLn $ mconcat [ "remote:  "
+                                  , pkgn', "-", pkgv', "-r", BS8.pack (show xrev')
+                                  ]
+
+           let cab'' = cabalEditXRev (xrev'+1) cab'
+               bakfn = optSyCFile <> "~"
+
+           case () of
+             _ | optSyCIncrRev, cab'' == cab0 -> do
+                     putStrLn "INFO: local and (incremented) latest remote .cabal revision are already identical! Nothing to do."
+
+             _ | not optSyCForce, xrev' < xrev -> do
+                     putStrLn "ERROR: Local file has higher revision number than Hackage - aborting! (use --force to allow this)"
+                     exitFailure
+
+             _ | optSyCIncrRev, cab'' /= cab0 -> do
+                     when (cab' == cab0) $ do
+                         putStrLn "NOTE: local and (non-incremented) latest remote .cabal revision are identical."
+
+                     BS.writeFile bakfn cab0
+                     putStrLn ("INFO: saved backup of original local file to " <> bakfn)
+
+                     BS.writeFile optSyCFile cab''
+                     BS8.putStrLn $ mconcat [ "local :  "
+                                            , pkgn, "-", pkgv, "-r", BS8.pack (show $ xrev'+1)
+                                            , "   ('", BS8.pack optSyCFile, "')"
+                                            ]
+
+             _ | cab' == cab0 -> do
+                     putStrLn "INFO: local and latest remote .cabal revision are already identical! Nothing to do."
+
+             _ -> do
+                     BS.writeFile bakfn cab0
+                     putStrLn ("INFO: saved backup of original local file to " <> bakfn)
+
+                     BS.writeFile optSyCFile cab'
+                     BS8.putStrLn $ mconcat [ "local :  "
+                                            , pkgn, "-", pkgv, "-r", BS8.pack (show $ xrev')
+                                            , "   ('", BS8.pack optSyCFile, "')"
+                                            ]
+
 
        ListCabal (ListCOptions {..}) -> do
            let pkgn = optLCPkgName
@@ -729,11 +798,11 @@ mainWithOptions Options {..} = do
     incrXrev :: ByteString -> ByteString
     incrXrev cabdata0 = cabalEditXRev (xrev0+1) cabdata0
       where
-        pdesc0 = parseGenericPackageDescription' (C.fromUTF8BS cabdata0)
+        pdesc0 = parseGenericPackageDescription' cabdata0
         (_,_,xrev0) = pkgDescToPkgIdXrev pdesc0
 
 
-    parseGenericPackageDescription' bs = case C.parseGenericPackageDescription bs of
+    parseGenericPackageDescription' bs = case C.parseGenericPackageDescription (C.fromUTF8BS bs) of
                                             C.ParseFailed e -> error (show e)
                                             C.ParseOk _ x -> x
 

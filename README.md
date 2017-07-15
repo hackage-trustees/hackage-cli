@@ -1,4 +1,4 @@
-# hackage-cli
+# `hackage-cli`
 
 ```
 hackage-cli - CLI tool for Hackage
@@ -14,10 +14,15 @@ Available options:
 Available commands:
   pull-cabal               download .cabal files for a package
   push-cabal               upload revised .cabal files
+  sync-cabal               upadate/sync local .cabal file with latest revision
+                           on Hackage
   push-candidate           upload package candidate(s)
   list-versions            list versions for a package
+  check-revision           validate revision
+  index-sha256sum          generate sha256sum-format file
 
 Each command has a sub-`--help` text. Hackage credentials are expected to be
 stored in an `${HOME}/.netrc`-entry for the respective Hackage hostname. E.g.
-"machine hackage.haskell.org login MyUserName password TrustNo1".
+"machine hackage.haskell.org login MyUserName password TrustNo1". All
+interactions with Hackage occur TLS-encrypted via the HTTPS protocol.
 ```
