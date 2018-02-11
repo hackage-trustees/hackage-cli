@@ -149,7 +149,9 @@ hackageRecvResp = do
 
     return resp
 
-data DryWetRun = DryRun | WetRun
+-- | Whether to operate in review/test mode or publish the revision for real
+data DryWetRun = DryRun -- ^ review/test mode
+               | WetRun -- ^ publish
 
 hackagePostCabal :: (ByteString,ByteString) -> (PkgName,PkgVer) -> ByteString -> DryWetRun -> HIO ByteString
 hackagePostCabal cred (pkgn,pkgv) rawcab dry = do
@@ -490,7 +492,7 @@ data ListCOptions = ListCOptions
 
 data PushCOptions = PushCOptions
   { optPsCIncrRev :: !Bool
-  , optPsCDry     :: !Bool
+  , optPsCPublish :: !Bool
   , optPsCFiles   :: [FilePath]
   } deriving Show
 
@@ -551,7 +553,7 @@ optionsParserInfo
 
     pushcoParser = PushCabal <$> (PushCOptions
                              <$> switch (long "incr-rev" <> help "increment x-revision field")
-                             <*> switch (long "dry"      <> help "upload in review-mode")
+                             <*> switch (long "publish"  <> help "publish revision (review-mode)")
                              <*> some (OA.argument str (metavar "CABALFILES...")))
 
     pushpcoParser = PushCandidate <$> (PushPCOptions <$> some (OA.argument str (metavar "TARBALLS...")))
@@ -710,7 +712,7 @@ mainWithOptions Options {..} = do
                (pkgn,pkgv,xrev) <- pkgDescToPkgIdXrev <$> C.readGenericPackageDescription C.deafening fn
                putStrLn $ concat [ "Pushing ", show fn
                                  , " (", BS8.unpack pkgn, "-", BS8.unpack pkgv, "~", show xrev, ")"
-                                 , if optPsCDry then " [review-mode]" else "", " ..."
+                                 , if not optPsCPublish then " [review-mode]" else "", " ..."
                                  ]
 
                let editCab | optPsCIncrRev = cabalEditXRev (xrev+1)
@@ -718,7 +720,7 @@ mainWithOptions Options {..} = do
 
                rawcab <- editCab <$> BS.readFile fn
                (dt,tmp) <- timeIt $ runHConn (hackagePostCabal (username,password) (pkgn,pkgv) rawcab
-                                                               (if optPsCDry then DryRun else WetRun))
+                                                               (if optPsCPublish then WetRun else DryRun))
 
                printf "Hackage response was (after %.3f secs):\n" dt
                putStrLn (replicate 80 '=')
