@@ -19,35 +19,35 @@ import           Control.Lens
 import           Control.Monad
 import           Control.Monad.State.Strict
 import           Data.Bits
-import           Data.ByteString                       (ByteString)
-import qualified Data.ByteString                       as BS
-import qualified Data.ByteString.Char8                 as BS8
-import qualified Data.ByteString.Lazy                  as BSL
-import qualified Data.ByteString.Search                as BSS
-import           Data.Char                             (isSpace, toLower)
-import qualified Data.List                             as List
+import           Data.ByteString                        (ByteString)
+import qualified Data.ByteString                        as BS
+import qualified Data.ByteString.Char8                  as BS8
+import qualified Data.ByteString.Lazy                   as BSL
+import qualified Data.ByteString.Search                 as BSS
+import           Data.Char                              (isSpace, toLower)
+import qualified Data.List                              as List
 import           Data.List.Split
 import           Data.Maybe
 import           Data.Monoid
-import           Data.Time.Clock.POSIX                 (getPOSIXTime)
-import qualified Distribution.Package                  as C
-import qualified Distribution.PackageDescription       as C
-import qualified Distribution.PackageDescription.Parse as C
-import qualified Distribution.Verbosity                as C
-import qualified Distribution.Version                  as C
-import qualified Distribution.Text                     as C
-import qualified Distribution.Simple.Utils             as C
+import           Data.Time.Clock.POSIX                  (getPOSIXTime)
+import qualified Distribution.Package                   as C
+import qualified Distribution.PackageDescription        as C
+import qualified Distribution.PackageDescription.Parsec as C
+import qualified Distribution.Parsec.Common             as C
+import qualified Distribution.Verbosity                 as C
+import qualified Distribution.Version                   as C
+import qualified Distribution.Text                      as C
 import           Network.Http.Client
 import           Network.NetRc
-import           Numeric.Natural                       (Natural)
-import           OpenSSL                               (withOpenSSL)
-import           Options.Applicative                   as OA
+import           Numeric.Natural                        (Natural)
+import           OpenSSL                                (withOpenSSL)
+import           Options.Applicative                    as OA
 import           System.Directory
-import           System.Exit                           (exitFailure)
+import           System.Exit                            (exitFailure)
 import           System.FilePath
-import qualified System.IO.Streams                     as Streams
+import qualified System.IO.Streams                      as Streams
 import           Text.HTML.TagSoup
-import           Text.Printf                           (printf)
+import           Text.Printf                            (printf)
 import qualified Paths_hackage_cli
 import qualified Data.Version as V
 
@@ -744,8 +744,8 @@ mainWithOptions Options {..} = do
 
 
        CheckRevision (CheckROptions {..}) -> do
-           old <- C.readUTF8File optCROrig
-           new <- C.readUTF8File optCRNew
+           old <- BS.readFile optCROrig
+           new <- BS.readFile optCRNew
 
            case diffCabalRevisions old new of
                Left err -> do
@@ -803,10 +803,10 @@ mainWithOptions Options {..} = do
         pdesc0 = parseGenericPackageDescription' cabdata0
         (_,_,xrev0) = pkgDescToPkgIdXrev pdesc0
 
-
-    parseGenericPackageDescription' bs = case C.parseGenericPackageDescription (C.fromUTF8BS bs) of
-                                            C.ParseFailed e -> error (show e)
-                                            C.ParseOk _ x -> x
+    parseGenericPackageDescription' bs =
+        case snd $ C.runParseResult $ C.parseGenericPackageDescription bs of
+            Left (_, es) -> error $ List.intercalate "\n" $ map (C.showPError "<.cabal>") es
+            Right x      -> x
 
 -- | Try to clean-up HTML fragments to be more readable
 tidyHtml :: ByteString -> ByteString
