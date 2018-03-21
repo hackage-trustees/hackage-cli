@@ -33,7 +33,11 @@ import           Data.Time.Clock.POSIX                  (getPOSIXTime)
 import qualified Distribution.Package                   as C
 import qualified Distribution.PackageDescription        as C
 import qualified Distribution.PackageDescription.Parsec as C
+import qualified Distribution.Parsec.Class              as C
 import qualified Distribution.Parsec.Common             as C
+import qualified Distribution.Parsec.Field              as C
+import qualified Distribution.Parsec.Parser             as C
+import qualified Distribution.Pretty                    as C
 import qualified Distribution.Verbosity                 as C
 import qualified Distribution.Version                   as C
 import qualified Distribution.Text                      as C
@@ -50,6 +54,9 @@ import           Text.HTML.TagSoup
 import           Text.Printf                            (printf)
 import qualified Paths_hackage_cli
 import qualified Data.Version as V
+
+import qualified Distribution.Types.BuildInfo.Lens                 as LC
+import qualified Distribution.Types.GenericPackageDescription.Lens as LC
 
 -- import Cabal
 
@@ -463,6 +470,16 @@ nsplitAt n = splitAt i
   where
     i = fromMaybe (error "nsplitAt: overflow") $ toIntegralSized n
 
+findLibrarySection :: [C.Field C.Position] -> Maybe (Int, Int)
+findLibrarySection [] = Nothing
+findLibrarySection (C.Section (C.Name (C.Position row _) "library") [] fs : _) =
+    Just (row, findIndent fs)
+  where
+    findIndent [] = 4
+    findIndent (f : _) = case C.fieldAnn f of
+        C.Position _ col -> pred col
+findLibrarySection (_ : fs) = findLibrarySection fs
+
 ----------------------------------------------------------------------------
 -- CLI Interface
 
@@ -505,6 +522,13 @@ data CheckROptions = CheckROptions
   , optCROrig :: FilePath
   } deriving Show
 
+data AddBoundOptions = AddBoundOptions
+  { optABPackageName  :: C.PackageName
+  , optABVersionRange :: C.VersionRange
+  , optABMessage      :: [String]
+  , optABFiles        :: [FilePath]
+  } deriving Show
+
 data Command
     = ListCabal !ListCOptions
     | PullCabal !PullCOptions
@@ -513,6 +537,7 @@ data Command
     | PushCandidate !PushPCOptions
     | CheckRevision !CheckROptions
     | IndexShaSum   !IndexShaSumOptions
+    | AddBound !AddBoundOptions
     deriving Show
 
 optionsParserInfo :: ParserInfo Options
@@ -529,6 +554,9 @@ optionsParserInfo
 
   where
     bstr = BS8.pack <$> str
+
+    prsc :: C.Parsec s => OA.ReadM s
+    prsc = OA.eitherReader C.eitherParsec
 
     vrange = do
         s <- str
@@ -566,6 +594,11 @@ optionsParserInfo
                                                         <*> OA.argument str (metavar "INDEX-TAR")
                                                         <*> optional (OA.argument str (metavar "BASEDIR")))
 
+    addboundParser = AddBound <$> (AddBoundOptions <$> OA.argument prsc (metavar "DEPENDENCY")
+                                                   <*> OA.argument prsc (metavar "VERSIONRANGE")
+                                                   <*> many (OA.option str (OA.short 'm' <> OA.long "message" <> metavar "MSG" <> help "Use given MSG as a comment. If multiple -m options are given, their values are concatenated with 'unlines'."))
+                                                   <*> some (OA.argument str (metavar "CABALFILES...")))
+
     oParser
         = Options <$> switch (long "verbose" <> help "enable verbose output")
                   <*> option bstr (long "hostname"  <> metavar "HOSTNAME" <> value "hackage.haskell.org"
@@ -584,6 +617,8 @@ optionsParserInfo
                                                    (progDesc "validate revision"))
                                          , command "index-sha256sum" (info (helper <*> indexssParser)
                                                    (progDesc "generate sha256sum-format file"))
+                                         , command "add-bound" (info (helper <*> addboundParser)
+                                                   (progDesc "add bound to the library section of a package. .cabal file is edited in place"))
                                          ])
 
     verOption = infoOption verMsg (long "version" <> help "output version information and exit")
@@ -769,6 +804,50 @@ mainWithOptions Options {..} = do
        IndexShaSum opts -> IndexShaSum.run opts
 
 
+       AddBound AddBoundOptions {..} -> forM_ optABFiles $ \fp -> do
+           old <- BS.readFile fp
+
+           -- idea is simple:
+           -- - .cabal is line oriented file
+           -- - find "library" section start
+           -- - bonus: look of an indentation used from the next field/section there
+           -- - insert data into a bytestring "manually"
+           fs <- either (exitFailureWith . show) return $ C.readFields old
+           (lin, indent) <- maybe
+               (exitFailureWith $ "Cannot find library section in " ++ fp)
+               return
+               (findLibrarySection fs)
+
+           let msgLines  = map ("-- " ++) optABMessage
+               bdLine    = "build-depends: " ++ C.prettyShow optABPackageName ++ " " ++ C.prettyShow optABVersionRange
+               midLines  = [ BS8.pack $ replicate indent ' ' ++ l
+                           | l <- msgLines ++ [bdLine]
+                           ] ++ [""] -- also add an empty line separator
+               (preLines, postLines) = splitAt lin $ BS8.lines old
+               new = BS8.unlines (preLines ++ midLines ++ postLines)
+
+           -- sanity check
+           let oldGpd = parseGenericPackageDescription' old
+               newGpd = parseGenericPackageDescription' new
+
+               oldRange = extractRange oldGpd optABPackageName
+               newRange = extractRange newGpd optABPackageName
+
+               oldRange' = C.intersectVersionRanges oldRange optABVersionRange
+
+           unless (C.toVersionIntervals newRange == C.toVersionIntervals oldRange') $
+              exitFailureWith $ unwords
+                  [ "Edit failed, version ranges don't match: "
+                  , C.prettyShow oldRange
+                  , "&&"
+                  , C.prettyShow optABVersionRange
+                  , "=/="
+                  , C.prettyShow newRange
+                  ]
+
+           -- write new version
+           BS.writeFile fp new
+
    return ()
   where
     mkHConn = do
@@ -803,10 +882,27 @@ mainWithOptions Options {..} = do
         pdesc0 = parseGenericPackageDescription' cabdata0
         (_,_,xrev0) = pkgDescToPkgIdXrev pdesc0
 
+    exitFailureWith e = do
+        putStrLn e
+        exitFailure
+
     parseGenericPackageDescription' bs =
         case snd $ C.runParseResult $ C.parseGenericPackageDescription bs of
             Left (_, es) -> error $ List.intercalate "\n" $ map (C.showPError "<.cabal>") es
             Right x      -> x
+
+    extractRange gpd pkgName = case vss of
+        []     -> C.noVersion
+        (v:vs) -> List.foldl' C.intersectVersionRanges v vs
+      where
+        vss = gpd ^.. LC.condLibrary . _Just . condTreeDataL . LC.targetBuildDepends . traverse . to ext . _Just
+        ext (C.Dependency pkgName' vr)
+           | pkgName == pkgName' = Just vr
+           | otherwise           = Nothing
+
+    condTreeDataL :: Functor f => (a -> f a) -> C.CondTree v c a -> f (C.CondTree v c a)
+    condTreeDataL f (C.CondNode x c cs) = f x <&> \y -> C.CondNode y c cs
+
 
 -- | Try to clean-up HTML fragments to be more readable
 tidyHtml :: ByteString -> ByteString
