@@ -20,6 +20,8 @@ Available commands:
   list-versions            list versions for a package
   check-revision           validate revision
   index-sha256sum          generate sha256sum-format file
+  add-bound                add bound to the library section of a package. .cabal
+                           file is edited in place
 
 Each command has a sub-`--help` text. Hackage credentials are expected to be
 stored in an `${HOME}/.netrc`-entry for the respective Hackage hostname. E.g.
