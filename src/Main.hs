@@ -55,6 +55,9 @@ import           Text.Printf                            (printf)
 import qualified Paths_hackage_cli
 import qualified Data.Version as V
 
+import qualified Distribution.Types.BuildInfo.Lens                 as LC
+import qualified Distribution.Types.GenericPackageDescription.Lens as LC
+
 -- import Cabal
 
 import Distribution.Server.Util.CabalRevisions
@@ -823,6 +826,26 @@ mainWithOptions Options {..} = do
                (preLines, postLines) = splitAt lin $ BS8.lines old
                new = BS8.unlines (preLines ++ midLines ++ postLines)
 
+           -- sanity check
+           let oldGpd = parseGenericPackageDescription' old
+               newGpd = parseGenericPackageDescription' new
+
+               oldRange = extractRange oldGpd optABPackageName
+               newRange = extractRange newGpd optABPackageName
+
+               oldRange' = C.intersectVersionRanges oldRange optABVersionRange
+
+           unless (C.toVersionIntervals newRange == C.toVersionIntervals oldRange') $
+              exitFailureWith $ unwords
+                  [ "Edit failed, version ranges don't match: "
+                  , C.prettyShow oldRange
+                  , "&&"
+                  , C.prettyShow optABVersionRange
+                  , "=/="
+                  , C.prettyShow newRange
+                  ]
+
+           -- write new version
            BS.writeFile fp new
 
    return ()
@@ -867,6 +890,19 @@ mainWithOptions Options {..} = do
         case snd $ C.runParseResult $ C.parseGenericPackageDescription bs of
             Left (_, es) -> error $ List.intercalate "\n" $ map (C.showPError "<.cabal>") es
             Right x      -> x
+
+    extractRange gpd pkgName = case vss of
+        []     -> C.noVersion
+        (v:vs) -> List.foldl' C.intersectVersionRanges v vs
+      where
+        vss = gpd ^.. LC.condLibrary . _Just . condTreeDataL . LC.targetBuildDepends . traverse . to ext . _Just
+        ext (C.Dependency pkgName' vr)
+           | pkgName == pkgName' = Just vr
+           | otherwise           = Nothing
+
+    condTreeDataL :: Functor f => (a -> f a) -> C.CondTree v c a -> f (C.CondTree v c a)
+    condTreeDataL f (C.CondNode x c cs) = f x <&> \y -> C.CondNode y c cs
+
 
 -- | Try to clean-up HTML fragments to be more readable
 tidyHtml :: ByteString -> ByteString
