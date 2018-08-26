@@ -12,7 +12,7 @@
 --
 module Main where
 
-import qualified Blaze.ByteString.Builder              as Builder
+import qualified Data.ByteString.Builder              as Builder
 import           Control.DeepSeq
 import           Control.Exception
 import           Control.Lens
@@ -44,7 +44,6 @@ import qualified Distribution.Text                      as C
 import           Network.Http.Client
 import           Network.NetRc
 import           Numeric.Natural                        (Natural)
-import           OpenSSL                                (withOpenSSL)
 import           Options.Applicative                    as OA
 import           System.Directory
 import           System.Exit                            (exitFailure)
@@ -195,14 +194,14 @@ hackagePostCabal cred (pkgn,pkgv) rawcab dry = do
     isDry DryRun = True
     isDry WetRun = False
 
-    body = Builder.toByteString $ multiPartBuilder boundary
+    body = Builder.toLazyByteString $ multiPartBuilder boundary
            [ ("cabalfile",[],[],rawcab)
            , if isDry dry
              then ("review", [],[],"Review changes")
              else ("publish",[],[],"Publish new revision")
            ]
 
-    bodyLen = fromIntegral $ BS.length body
+    bodyLen = fromIntegral $ BSL.length body
 
     boundary = "4d5bb1565a084d78868ff0178bdf4f61"
 
@@ -222,8 +221,17 @@ hackagePostCabal cred (pkgn,pkgv) rawcab dry = do
             t' = fst . BS8.spanEnd (=='\n') . BS8.dropWhile (=='\n') $ t
         cleanText x = x
 
-bsBody :: ByteString -> Streams.OutputStream Builder.Builder -> IO ()
-bsBody bs = Streams.write (Just (Builder.fromByteString bs))
+class ToBuilder a where
+  toBuilder :: a -> Builder.Builder
+
+instance ToBuilder ByteString where
+  toBuilder = Builder.byteString
+
+instance ToBuilder BSL.ByteString where
+  toBuilder = Builder.lazyByteString
+
+bsBody :: ToBuilder a => a -> Streams.OutputStream Builder.Builder -> IO ()
+bsBody bs = Streams.write (Just (toBuilder bs))
 
 -- | Upload a candidate to Hackage
 --
@@ -259,10 +267,10 @@ hackagePushCandidate cred (tarname,rawtarball) = do
   where
     urlpath = "/packages/candidates/"
 
-    body = Builder.toByteString $
+    body = Builder.toLazyByteString $
            multiPartBuilder boundary [ ("package", [("filename", BS8.pack tarname)]
                                      , ["Content-Type: application/gzip"], rawtarball)]
-    bodyLen = fromIntegral $ BS.length body
+    bodyLen = fromIntegral $ BSL.length body
 
     boundary = "4d5bb1565a084d78868ff0178bdf4f61"
 
@@ -286,7 +294,7 @@ multiPartBuilder boundary mparts = mconcat $ concatMap mkPart mparts ++ trailer
 
     crlf = bs"\r\n"
     dash = bs"--"
-    bs = Builder.fromByteString
+    bs = Builder.byteString
 
 fetchVersions :: PkgName -> HIO [(PkgVer,PkgVerStatus)]
 fetchVersions pkgn = do
@@ -630,7 +638,7 @@ optionsParserInfo
 main :: IO ()
 main = do
     opts <- execParser optionsParserInfo
-    withOpenSSL (mainWithOptions opts)
+    mainWithOptions opts
 
 mainWithOptions :: Options -> IO ()
 mainWithOptions Options {..} = do
