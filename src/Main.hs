@@ -24,7 +24,7 @@ import qualified Data.ByteString                        as BS
 import qualified Data.ByteString.Char8                  as BS8
 import qualified Data.ByteString.Lazy                   as BSL
 import qualified Data.ByteString.Search                 as BSS
-import           Data.Char                              (isSpace, toLower)
+import           Data.Char                              (isSpace)
 import qualified Data.List                              as List
 import           Data.List.Split
 import           Data.Maybe
@@ -61,10 +61,10 @@ import qualified Distribution.Types.GenericPackageDescription.Lens as LC
 
 import Distribution.Server.Util.CabalRevisions
 import IndexShaSum
+import CabalEdit
 
 type PkgName = ByteString
 type PkgVer  = ByteString
-type PkgRev  = Word
 
 showVersion :: C.Version -> String
 showVersion = C.display
@@ -358,39 +358,6 @@ mkPipeline maxQ vs
     sameLen (_:xs) (_:ys) = sameLen xs ys
     sameLen [] (_:_)      = False
     sameLen (_:_) []      = False
-
--- | Insert or replace existing "x-revision" line
---
--- NOTE: Supports only simplified (i.e. without the @{;}@-layout) Cabal file grammar
-cabalEditXRev :: PkgRev -> ByteString -> ByteString
-cabalEditXRev xrev oldcab = BS8.unlines ls'
-  where
-    ls = BS8.lines oldcab
-
-    xrevLine = "x-revision: " <> BS8.pack (show xrev) <> (if isCRLF then "\r" else "")
-
-    -- | Try to detect if line contains the given field.
-    -- I.e. try to match  @<field-name-ci> WS* ':' ...@
-    matchFieldCI :: ByteString -> ByteString -> Bool
-    matchFieldCI fname line
-      | ':' `BS8.elem` line = fname == BS8.map toLower fname'
-      | otherwise = False
-      where
-        fname' = fst . BS8.spanEnd isSpace . BS8.takeWhile (/=':') $ line
-
-    -- simple heuristic
-    isCRLF = case ls of
-        []     -> False
-        ("":_) -> False
-        (l1:_) -> BS8.last l1 == '\r'
-
-    ls' = case break (matchFieldCI "x-revision") ls of
-        (_,[]) -> ls'' -- x-rev not found; try to insert after version-field instead
-        (xs,_:ys) -> xs++ xrevLine:ys
-
-    ls'' = case break (matchFieldCI "version") ls of
-        (_,[]) -> error "cabalEditXRev: unsupported cabal grammar; version field not found"
-        (xs,v:ys) -> xs ++ v:xrevLine:ys
 
 fetchAllCabalFiles :: PkgName -> C.VersionRange -> HIO [(PkgVer,Maybe ByteString)]
 fetchAllCabalFiles pkgn vrange = do
