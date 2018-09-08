@@ -479,6 +479,7 @@ data SyncCOptions = SyncCOptions
 
 data ListCOptions = ListCOptions
   { optLCPkgName :: !PkgName
+  , optNoAnn     :: !Bool
   , optRevUrls   :: !Bool
   } deriving Show
 
@@ -541,6 +542,7 @@ optionsParserInfo
 
     listcoParser = ListCabal <$>
         (ListCOptions <$> OA.argument bstr (metavar "PKGNAME")
+                      <*> switch (long "no-annotations" <> help "don't add preferred-versions annotations")
                       <*> switch (long "rev-urls" <> help "list revision URLs"))
 
     pullcoParser = PullCabal <$>
@@ -697,9 +699,10 @@ mainWithOptions Options {..} = do
 
            vs <- runHConn (fetchVersions pkgn)
 
-           putStrLn $ concat [ "Found ", show (length vs), " package versions for "
-                             , show pkgn, " ([U]npreferred, [D]eprecated):"
-                             ]
+           unless optNoAnn $
+             putStrLn $ concat [ "Found ", show (length vs), " package versions for "
+                               , show pkgn, " ([U]npreferred, [D]eprecated):"
+                               ]
 
            if optRevUrls then do
              forM_ vs $ \(v,_) -> do
@@ -708,6 +711,7 @@ mainWithOptions Options {..} = do
            else do
              forM_ vs $ \(v,unp) -> do
                  let status = case unp of
+                         _ | optNoAnn -> ""
                          Normal      -> "    "
                          Deprecated  -> "[D] "
                          UnPreferred -> "[U] "
