@@ -387,9 +387,11 @@ scrapeVersions html = force vs
     isWhiteText (TagText s) = BS8.all isSpace s
     isWhiteText _           = False
 
+    go [TagOpen "a" attr, TagText verStr, TagClose "a"] = (verStr,isPref attr)
     go [TagOpen "a" attr, TagText verStr, TagClose "a", TagText ", "] = (verStr,isPref attr)
+    go [TagOpen "strong" attr, TagText verStr, TagClose "strong", TagText ", "] = (verStr,isPref attr)
     go [TagOpen "strong" attr, TagText verStr, TagClose "strong"] = (verStr,isPref attr)
-    go _ = error "unexpected HTML structure structure"
+    go xs = error ("unexpected HTML structure: " ++ show xs)
 
     isPref as = case lookup "class" as of
         Just "unpreferred" -> UnPreferred
