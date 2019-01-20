@@ -379,6 +379,9 @@ scrapeVersions html = force vs
 
     getVerRow (TagOpen "tr" _ : TagOpen "th" _ : TagText "Versions" : TagClose "th" : TagOpen "td" _ : ts)
         | ts' <- trimVerRow ts = Just (map go $ chunksOf 4 ts')
+    getVerRow (TagOpen "tr" _ : TagOpen "th" _ : TagText "Versions" : xs)
+        | (TagClose "th" : TagOpen "td" _ : ts) <- dropWhile (/= TagClose "th") xs
+        , ts' <- trimVerRow ts = Just (map go $ chunksOf 4 ts')
     getVerRow _ = Nothing
 
     stripWhiteText = filter (not . isWhiteText)
