@@ -15,6 +15,10 @@ category:            Development
 build-type:          Simple
 tested-with:         GHC==8.2.2, GHC==8.4.4
 
+extra-source-files:
+  fixtures/*.diff
+  fixtures/*.cabal
+
 source-repository head
   Type:     git
   Location: https://github.com/hvr/hackage-cli.git
