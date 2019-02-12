@@ -1,4 +1,4 @@
-cabal-version:       2.0
+cabal-version:       2.4
 name:                hackage-cli
 version:             0.1.0.0
 
@@ -7,7 +7,7 @@ description:
   With @hackage-cli@ you can manage @.cabal@ files,
   e.g. upload revised variants.
 homepage:            https://github.com/hvr/hackage-cli
-license:             GPL-3
+license:             GPL-3.0-or-later
 license-file:        LICENSE
 author:              Herbert Valerio Riedel
 maintainer:          hvr@gnu.org
@@ -18,6 +18,38 @@ tested-with:         GHC==8.2.2, GHC==8.4.1
 source-repository head
   Type:     git
   Location: https://github.com/hvr/hackage-cli.git
+
+library cabal-revisions
+  X-SPDX-License-Identifier: BSD-3-Clause
+  default-language:    Haskell2010
+  hs-source-dirs:      lib
+  ghc-options:         -Wall
+
+  build-depends:
+    , base         >= 4.10.0.0 && <4.12
+    , bytestring  ^>= 0.10.4.0
+    , Cabal       ^>= 2.2.0.1
+    , containers  ^>= 0.5.0.0
+    , mtl         ^>= 2.2.2
+    , pretty      ^>= 1.1.2
+
+  exposed-modules:
+    Distribution.Server.Util.CabalRevisions
+
+test-suite cabal-revisions-tests
+  default-language:    Haskell2010
+  hs-source-dirs:      tests
+  ghc-options:         -Wall
+  type:                exitcode-stdio-1.0
+  main-is:             Tests.hs
+  build-depends:
+    , base
+    , bytestring
+    , Cabal
+    , cabal-revisions
+    , tasty        ^>= 1.2.1
+    , tasty-golden ^>= 2.3.2
+    , filepath     ^>= 1.4.0.0
 
 executable hackage-cli
   default-language:    Haskell2010
@@ -33,28 +65,29 @@ executable hackage-cli
   other-modules:
     IndexShaSum
     CabalEdit
-    Distribution.Server.Util.CabalRevisions
     Paths_hackage_cli
 
   autogen-modules:
     Paths_hackage_cli
 
   build-depends:
-      base                   >= 4.8.0.0 && <4.12
-    , Cabal                 ^>= 2.2.0.1
+    , base
+    , bytestring
+    , Cabal
+    , cabal-revisions
+    , containers
+    , mtl
+
+  build-depends:
     , aeson                 ^>= 1.3.1.1
-    , bytestring            ^>= 0.10.4.0
-    , containers            ^>= 0.5.0.0
     , deepseq               ^>= 1.4.0.0
     , directory             ^>= 1.2.0.1 || ^>= 1.3.0.0
     , filepath              ^>= 1.4.0.0
     , http-io-streams       ^>= 0.1.0.0
     , io-streams            ^>= 1.5.0.1
-    , lens                  ^>= 4.16
-    , mtl                   ^>= 2.2.2
+    , lens                  ^>= 4.17
     , netrc                 ^>= 0.2.0.0
     , optparse-applicative  ^>= 0.14
-    , pretty                ^>= 1.1.2
     , semigroups            ^>= 0.18.3
     , split                 ^>= 0.2
     , stringsearch          ^>= 0.3.6
