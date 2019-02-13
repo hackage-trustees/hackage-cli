@@ -15,6 +15,7 @@
 -- Validation and helpers for Cabal revision handling
 module Distribution.Server.Util.CabalRevisions
     ( diffCabalRevisions
+    , diffCabalRevisions'
     , Change(..)
     , insertRevisionField
     ) where
@@ -65,8 +66,16 @@ import Data.Proxy (Proxy(Proxy))
 -- 'String' and performs validations. Returns either a validation
 -- error or a list of detected changes.
 diffCabalRevisions :: BS.ByteString -> BS.ByteString -> Either String [Change]
-diffCabalRevisions oldVersion newRevision = runCheck $
-    checkCabalFileRevision oldVersion newRevision
+diffCabalRevisions = diffCabalRevisions' True
+
+-- | Like 'diffCabalRevisions' but only optionally check @x-revision@ field modifications.
+diffCabalRevisions'
+    :: Bool                    -- ^ check @x-revision@
+    -> BS.ByteString           -- ^ old revision
+    -> BS.ByteString           -- ^ new revision
+    -> Either String [Change]
+diffCabalRevisions' checkXRevision oldVersion newRevision = runCheck $
+    checkCabalFileRevision checkXRevision oldVersion newRevision
 
 newtype CheckM a = CheckM { unCheckM :: ExceptT String (Writer [Change]) a }
     deriving (Functor, Applicative)
@@ -114,15 +123,15 @@ logChange change = CheckM (tell [change])
 
 type Check a = a -> a -> CheckM ()
 
-checkCabalFileRevision :: Check BS.ByteString
-checkCabalFileRevision old new = do
+checkCabalFileRevision :: Bool -> Check BS.ByteString
+checkCabalFileRevision checkXRevision old new = do
     (pkg,  warns)  <- parseCabalFile old
     (pkg', warns') <- parseCabalFile new
 
     let pkgid    = packageId pkg
         filename = display pkgid ++ ".cabal"
 
-    checkGenericPackageDescription pkg pkg'
+    checkGenericPackageDescription checkXRevision pkg pkg'
     checkParserWarnings filename warns warns'
     checkPackageChecks  pkg   pkg'
 
@@ -157,12 +166,12 @@ checkCabalFileRevision old new = do
             []        -> return ()
             newchecks -> fail $ unlines (map explanation newchecks)
 
-checkGenericPackageDescription :: Check GenericPackageDescription
-checkGenericPackageDescription
+checkGenericPackageDescription :: Bool -> Check GenericPackageDescription
+checkGenericPackageDescription checkXRevision
     (GenericPackageDescription descrA flagsA libsA sublibsA flibsA exesA testsA benchsA)
     (GenericPackageDescription descrB flagsB libsB sublibsB flibsB exesB testsB benchsB) = do
 
-    checkPackageDescriptions descrA descrB
+    checkPackageDescriptions checkXRevision descrA descrB
 
     checkList "Cannot add or remove flags" checkFlag flagsA flagsB
 
@@ -235,8 +244,8 @@ checkFlag flagOld flagNew = do
     changesOk ("description of flag '" ++ fname ++ "'") id
               (flagDescription flagOld) (flagDescription flagNew)
 
-checkPackageDescriptions :: Check PackageDescription
-checkPackageDescriptions
+checkPackageDescriptions :: Bool -> Check PackageDescription
+checkPackageDescriptions checkXRevision
   pdA@(PackageDescription
      { specVersionRaw  = _specVersionRawA
      , package         = packageIdA
@@ -255,7 +264,6 @@ checkPackageDescriptions
      , description     = descriptionA
      , category        = categoryA
      , customFieldsPD  = customFieldsPDA
-     , buildDepends    = _buildDependsA
      , buildTypeRaw    = buildTypeRawA
      , setupBuildInfo  = setupBuildInfoA
      , library         = _libraryA
@@ -288,7 +296,6 @@ checkPackageDescriptions
      , description     = descriptionB
      , category        = categoryB
      , customFieldsPD  = customFieldsPDB
-     , buildDepends    = _buildDependsB
      , buildTypeRaw    = buildTypeRawB
      , setupBuildInfo  = setupBuildInfoB
      , library         = _libraryB
@@ -343,7 +350,7 @@ checkPackageDescriptions
   checkSpecVersionRaw pdA pdB
   checkSetupBuildInfo setupBuildInfoA setupBuildInfoB
 
-  checkRevision customFieldsPDA customFieldsPDB
+  when checkXRevision $ checkRevision customFieldsPDA customFieldsPDB
   checkCuration customFieldsPDA customFieldsPDB
 
 checkSpecVersionRaw :: Check PackageDescription
