@@ -6,7 +6,7 @@
 -- |
 -- Module      :  IndexShaSum
 -- Copyright   :  Herbert Valerio Riedel
--- License     :  GPL-3
+-- SPDX-License-Identifier: GPL-3.0-or-later
 --
 module IndexShaSum (run, IndexShaSumOptions(..)) where
 
