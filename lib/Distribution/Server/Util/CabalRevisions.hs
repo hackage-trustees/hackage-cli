@@ -6,7 +6,7 @@
 -- |
 -- Module      :  Distribution.Server.Util.CabalRevisions
 -- Copyright   :  Duncan Coutts et al.
--- License     :  BSD3
+-- SPDX-License-Identifier: BSD-3-Clause
 --
 -- Maintainer  :  libraries@haskell.org
 -- Stability   :  provisional
