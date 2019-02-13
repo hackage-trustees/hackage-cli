@@ -11,7 +11,13 @@ import Test.Tasty.Golden (goldenVsStringDiff)
 
 main :: IO ()
 main = defaultMain $ testGroup "Fixtures"
+    -- basic sanity tests
     [ golden "tree-diff"
+    , golden "deepseq"
+
+    -- adding a new conditional section with restricted bounds
+    -- TODO: this is not allowed
+    , golden "SVGFonts"
     ]
 
 golden :: String -> TestTree
