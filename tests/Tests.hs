@@ -19,6 +19,8 @@ main = defaultMain $ testGroup "Fixtures"
     -- adding a new conditional section with restricted bounds
     -- TODO: this is not allowed
     , golden "SVGFonts" 0 2
+
+    , golden "semigroups" 0 2
     ]
 
 golden :: String -> Int -> Int -> TestTree
@@ -52,6 +54,8 @@ golden' name mi ma = goldenVsStringDiff name' diff gold $ do
         , "+ " ++ to
         ]
 
+-- cartesian product without diagonal
+-- the idea is that revisions should be transitive and symmetric
 pairs :: [a] -> [(a,a)]
 pairs []     = []
-pairs (x:xs) = map (x,) xs ++ pairs xs
+pairs (x:xs) = map (x,) xs ++ map (,x) xs ++ pairs xs
