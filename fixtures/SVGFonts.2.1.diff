@@ -1,0 +1,5 @@
+OK
+Normal
+the library component's library dependency on 'diagrams-lib'
+- -any
++ <1.4

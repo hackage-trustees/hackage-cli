@@ -1,0 +1,5 @@
+OK
+Normal
+the library component's library dependency on 'containers'
+- >=0.3 && <0.7
++ >=0.3 && <0.8
