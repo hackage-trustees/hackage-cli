@@ -30,7 +30,7 @@ library cabal-revisions
   ghc-options:         -Wall
 
   build-depends:
-    , base         >= 4.10.0.0 && <4.12
+    , base         >= 4.10.0.0 && <4.13
     , bytestring  ^>= 0.10.4.0
     , Cabal       ^>= 2.4.1.0
     , containers  ^>= 0.5.0.0
@@ -92,6 +92,7 @@ executable hackage-cli
     , lens                  ^>= 4.17
     , netrc                 ^>= 0.2.0.0
     , optparse-applicative  ^>= 0.14
+    , process-extras        ^>= 0.7.4
     , semigroups            ^>= 0.18.3
     , split                 ^>= 0.2
     , stringsearch          ^>= 0.3.6
