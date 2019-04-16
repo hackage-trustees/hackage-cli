@@ -46,9 +46,12 @@ import           Network.NetRc
 import           Numeric.Natural                        (Natural)
 import           Options.Applicative                    as OA
 import           System.Directory
-import           System.Exit                            (exitFailure)
+import           System.Environment                     (lookupEnv)
+import           System.Exit                            (ExitCode (..), exitFailure)
 import           System.FilePath
+import           System.IO.Error                        (tryIOError, isDoesNotExistError)
 import qualified System.IO.Streams                      as Streams
+import           System.Process.ByteString              (readProcessWithExitCode)
 import           Text.HTML.TagSoup
 import           Text.Printf                            (printf)
 import qualified Paths_hackage_cli
@@ -526,14 +529,15 @@ optionsParserInfo
     = info (helper <*> verOption <*> oParser)
            (fullDesc
             <> header "hackage-cli - CLI tool for Hackage"
-            <> footer "\
-              \ Each command has a sub-`--help` text. Hackage credentials are expected to be \
-              \ stored in an `${HOME}/.netrc`-entry for the respective Hackage hostname. \
-              \ E.g. \"machine hackage.haskell.org login MyUserName password TrustNo1\". \
-              \ All interactions with Hackage occur TLS-encrypted via the HTTPS protocol. \
-              \ ")
-
+            <> footer footerStr)
   where
+    footerStr = unwords
+        [ "Each command has a sub-`--help` text. Hackage credentials are expected to be"
+        , "stored in an `${HOME}/.netrc`-entry (or `.netrc.gpg`) for the respective Hackage hostname."
+        , "E.g. \"machine hackage.haskell.org login MyUserName password TrustNo\"."
+        , "All interactions with Hackage occur TLS-encrypted via the HTTPS protocol."
+        ]
+
     bstr = BS8.pack <$> str
 
     prsc :: C.Parsec s => OA.ReadM s
@@ -845,14 +849,42 @@ mainWithOptions Options {..} = do
             closeHConn
             return res
 
+    getNetrcContents :: IO (Maybe ByteString)
+    getNetrcContents = do
+        mhome <- lookupEnv "HOME"
+        case mhome of
+            Nothing -> return Nothing
+            Just "" -> return Nothing
+            Just ho -> do
+                let fnGpg = ho ++ "/.netrc.gpg"
+                let fn = ho ++ "/.netrc"
+                gpgExists <- doesFileExist fnGpg
+                if gpgExists
+                then readGpg fnGpg
+                else readPlain fn
+      where
+        readGpg fn = do
+            (ec, out, err) <- readProcessWithExitCode "gpg" ["--decrypt", fn] ""
+            case ec of
+                ExitSuccess   -> return (Just out)
+                ExitFailure _ -> BS.putStr err >> return Nothing
+
+        readPlain fn = do
+            ret <- tryIOError (BS.readFile fn)
+            case ret of
+                Left e | isDoesNotExistError e -> return Nothing
+                       | otherwise             -> ioError e
+                Right b -> return $! Just b
+
     getHackageCreds :: IO (Maybe (ByteString,ByteString))
-    getHackageCreds =
-        readUserNetRc >>= \case
+    getHackageCreds = do
+        getNetrcContents >>= \case
             Nothing -> pure Nothing
-            Just (Left _) -> fail "Invalid ${HOME}/.netrc found"
-            Just (Right (NetRc {..})) ->
-                evaluate $ (\NetRcHost{..} -> (nrhLogin,nrhPassword))
-                           <$> listToMaybe (filter ((== optHost) . nrhName) nrHosts)
+            Just contents -> case parseNetRc "netrc" contents of
+                Left _ -> fail "Invalid ${HOME}/.netrc(.gpg) found"
+                Right NetRc {..} ->
+                    evaluate $ (\NetRcHost{..} -> (nrhLogin,nrhPassword))
+                               <$> listToMaybe (filter ((== optHost) . nrhName) nrHosts)
 
 
     pkgDescToPkgIdXrev pdesc = force (BS8.pack pkgn, BS8.pack $ showVersion pkgv, read xrev :: PkgRev)
