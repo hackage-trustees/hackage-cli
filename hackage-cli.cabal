@@ -13,7 +13,7 @@ author:              Herbert Valerio Riedel
 maintainer:          hvr@gnu.org
 category:            Development
 build-type:          Simple
-tested-with:         GHC==8.2.2, GHC==8.4.4
+tested-with:         GHC==8.2.2, GHC==8.4.4, GHC==8.6.5, GHC==8.8.1
 
 extra-source-files:
   fixtures/*.diff
@@ -30,10 +30,10 @@ library cabal-revisions
   ghc-options:         -Wall
 
   build-depends:
-    , base         >= 4.10.0.0 && <4.13
+    , base         >= 4.10.0.0 && <4.14
     , bytestring  ^>= 0.10.4.0
-    , Cabal       ^>= 2.4.1.0
-    , containers  ^>= 0.5.0.0
+    , Cabal       ^>= 3.0.0.0
+    , containers  ^>= 0.5.0.0 || ^>=0.6.0.1
     , mtl         ^>= 2.2.2
     , pretty      ^>= 1.1.2
 
@@ -89,17 +89,17 @@ executable hackage-cli
     , filepath              ^>= 1.4.0.0
     , http-io-streams       ^>= 0.1.0.0
     , io-streams            ^>= 1.5.0.1
-    , lens                  ^>= 4.17
+    , lens                  ^>= 4.17 || ^>=4.18
     , netrc                 ^>= 0.2.0.0
-    , optparse-applicative  ^>= 0.14
+    , optparse-applicative  ^>= 0.14 || ^>=0.15
     , process-extras        ^>= 0.7.4
-    , semigroups            ^>= 0.18.3
+    , semigroups            ^>= 0.18.3 || ^>=0.19.1
     , split                 ^>= 0.2
     , stringsearch          ^>= 0.3.6
     , tagsoup               ^>= 0.14
     , tar                   ^>= 0.5
     , text                  ^>= 1.2
-    , time                  ^>= 1.5.0.1 || ^>= 1.6.0.1 || ^>= 1.8.0.2
+    , time                  ^>= 1.5.0.1 || ^>= 1.6.0.1 || ^>= 1.8.0.2 || ^>=1.9.3
     , unordered-containers  ^>= 0.2.7
     , zlib                  ^>= 0.6.1
 
