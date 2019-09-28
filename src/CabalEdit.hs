@@ -12,9 +12,8 @@ module CabalEdit
 import           Data.ByteString                        (ByteString)
 import qualified Data.ByteString.Char8                  as BS8
 import           Data.Semigroup
-import qualified Distribution.Parsec.Common             as C
-import qualified Distribution.Parsec.Field              as C
-import qualified Distribution.Parsec.Parser             as C
+import qualified Distribution.Parsec                    as C
+import qualified Distribution.Fields                    as C
 
 type PkgRev  = Word
 

@@ -33,10 +33,9 @@ import           Data.Time.Clock.POSIX                  (getPOSIXTime)
 import qualified Distribution.Package                   as C
 import qualified Distribution.PackageDescription        as C
 import qualified Distribution.PackageDescription.Parsec as C
-import qualified Distribution.Parsec.Class              as C
-import qualified Distribution.Parsec.Common             as C
-import qualified Distribution.Parsec.Field              as C
-import qualified Distribution.Parsec.Parser             as C
+import qualified Distribution.Parsec                    as C
+import qualified Distribution.Fields                    as C
+import qualified Distribution.Fields.Field              as C (fieldAnn)
 import qualified Distribution.Pretty                    as C
 import qualified Distribution.Verbosity                 as C
 import qualified Distribution.Version                   as C
@@ -912,7 +911,7 @@ mainWithOptions Options {..} = do
         (v:vs) -> List.foldl' C.intersectVersionRanges v vs
       where
         vss = gpd ^.. LC.condLibrary . _Just . condTreeDataL . LC.targetBuildDepends . traverse . to ext . _Just
-        ext (C.Dependency pkgName' vr)
+        ext (C.Dependency pkgName' vr _)
            | pkgName == pkgName' = Just vr
            | otherwise           = Nothing
 
