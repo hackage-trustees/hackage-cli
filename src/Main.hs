@@ -594,7 +594,7 @@ optionsParserInfo
                                          , command "push-cabal" (info (helper <*> pushcoParser)
                                                    (progDesc "upload revised .cabal files"))
                                          , command "sync-cabal" (info (helper <*> synccoParser)
-                                                   (progDesc "upadate/sync local .cabal file with latest revision on Hackage"))
+                                                   (progDesc "update/sync local .cabal file with latest revision on Hackage"))
                                          , command "push-candidate" (info (helper <*> pushpcoParser)
                                                    (progDesc "upload package candidate(s)"))
                                          , command "list-versions" (info (helper <*> listcoParser)
