@@ -1,0 +1,3 @@
+-- By default `installed` constraints are used for packages
+-- in global db. We can modify which constraints are used.
+installed: +all -Cabal
