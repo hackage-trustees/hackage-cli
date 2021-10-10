@@ -12,6 +12,8 @@
 --
 module Main where
 
+import qualified Data.Aeson                           as J
+import qualified Data.Aeson.Types                     as J
 import qualified Data.ByteString.Builder              as Builder
 import           Control.DeepSeq
 import           Control.Exception
@@ -26,9 +28,7 @@ import qualified Data.ByteString.Lazy                   as BSL
 import qualified Data.ByteString.Search                 as BSS
 import           Data.Char                              (isSpace)
 import qualified Data.List                              as List
-import           Data.List.Split
 import           Data.Maybe
-import           Data.Monoid
 import           Data.Time.Clock.POSIX                  (getPOSIXTime)
 import qualified Distribution.Package                   as C
 import qualified Distribution.PackageDescription        as C
@@ -301,9 +301,11 @@ multiPartBuilder boundary mparts = mconcat $ concatMap mkPart mparts ++ trailer
 
 fetchVersions :: PkgName -> HIO [(PkgVer,PkgVerStatus)]
 fetchVersions pkgn = do
-    hackageSendGET ("/package/" <> pkgn) "text/html"
+    hackageSendGET ("/package/" <> pkgn <> "/preferred") "application/json"
     resp <- hackageRecvResp
-    liftIO $ evaluate $ scrapeVersions resp
+    case decodeVersions resp of
+        Right xs -> pure xs
+        Left err -> fail err
 
 fetchCabalFile :: PkgName -> PkgVer -> HIO ByteString
 fetchCabalFile pkgn pkgv = do
@@ -375,40 +377,18 @@ fetchAllCabalFiles pkgn vrange = do
 data PkgVerStatus = Normal | UnPreferred | Deprecated deriving (Eq,Show)
 instance NFData PkgVerStatus where rnf !_ = ()
 
-scrapeVersions :: ByteString -> [(PkgVer,PkgVerStatus)]
-scrapeVersions html = force vs
+decodeVersions :: ByteString -> Either String [(PkgVer,PkgVerStatus)]
+decodeVersions bs = do
+    obj <- J.eitherDecode' (BSL.fromStrict bs)
+    flip J.parseEither obj $ \o -> do
+        normal <- o J..:? "normal-version"
+        unpreferred <- o J..:? "unpreferred-version"
+        deprecated <- o J..:? "deprecated-version"
+        pure $ toPairs Normal normal ++ toPairs UnPreferred unpreferred ++ toPairs Deprecated deprecated
   where
-    [vs] = mapMaybe (getVerRow . stripWhiteText) $ partitions (== TagOpen "tr" []) $ parseTags html
-
-    getVerRow (TagOpen "tr" _ : TagOpen "th" _ : TagText "Versions" : TagClose "th" : TagOpen "td" _ : ts)
-        | ts' <- trimVerRow ts = Just (map go $ chunksOf 4 ts')
-    getVerRow (TagOpen "tr" _ : TagOpen "th" _ : TagText "Versions" : xs)
-        | (TagClose "th" : TagOpen "td" _ : ts) <- dropWhile (/= TagClose "th") xs
-        , ts' <- trimVerRow ts = Just (map go $ chunksOf 4 ts')
-    getVerRow _ = Nothing
-
-    stripWhiteText = filter (not . isWhiteText)
-
-    isWhiteText :: Tag ByteString -> Bool
-    isWhiteText (TagText s) = BS8.all isSpace s
-    isWhiteText _           = False
-
-    go [TagOpen "a" attr, TagText verStr, TagClose "a"] = (verStr,isPref attr)
-    go [TagOpen "a" attr, TagText verStr, TagClose "a", TagText ", "] = (verStr,isPref attr)
-    go [TagOpen "strong" attr, TagText verStr, TagClose "strong", TagText ", "] = (verStr,isPref attr)
-    go [TagOpen "strong" attr, TagText verStr, TagClose "strong"] = (verStr,isPref attr)
-    go xs = error ("unexpected HTML structure: " ++ show xs)
-
-    isPref as = case lookup "class" as of
-        Just "unpreferred" -> UnPreferred
-        Just "deprecated"  -> Deprecated
-        Just _             -> error "unexpected version status"
-        Nothing            -> Normal
-
-    trimVerRow (reverse -> TagClose "tr":TagClose "td":
-                           TagText ")":TagClose "a":TagText "info":TagOpen "a" _:TagText " (":ts') = reverse ts'
-    trimVerRow (reverse -> TagClose "tr":TagClose "td":ts') = reverse ts'
-    trimVerRow _ = error "trimVerRow: unexpected HTML structure"
+    toPairs :: PkgVerStatus -> Maybe [String] -> [(PkgVer,PkgVerStatus)]
+    toPairs s (Just vs) = [(BS8.pack v, s) | v <- vs]
+    toPairs _ _ = []
 
 closeHConn :: HIO ()
 closeHConn = do
