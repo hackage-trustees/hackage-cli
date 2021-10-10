@@ -94,7 +94,6 @@ executable hackage-cli
     , optparse-applicative  ^>= 0.14
     , process-extras        ^>= 0.7.4
     , semigroups            ^>= 0.18.3
-    , split                 ^>= 0.2
     , stringsearch          ^>= 0.3.6
     , tagsoup               ^>= 0.14
     , tar                   ^>= 0.5
