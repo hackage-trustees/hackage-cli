@@ -61,6 +61,7 @@ test-suite cabal-revisions-tests
 executable hackage-cli
   default-language:    Haskell2010
   other-extensions:
+    CPP
     LambdaCase
     OverloadedStrings
     RecordWildCards

@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns      #-}
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
@@ -30,6 +31,10 @@ import           Data.Char                              (isSpace)
 import qualified Data.List                              as List
 import           Data.Maybe
 import           Data.Time.Clock.POSIX                  (getPOSIXTime)
+#if !MIN_VERSION_base(4,11,0)
+import           Data.Semigroup                         (Semigroup(..))
+#endif
+
 import qualified Distribution.Package                   as C
 import qualified Distribution.PackageDescription        as C
 import qualified Distribution.PackageDescription.Parsec as C
