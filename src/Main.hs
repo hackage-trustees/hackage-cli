@@ -550,40 +550,40 @@ optionsParserInfo
             Just vr -> pure vr
 
     listcoParser = ListCabal <$>
-        (ListCOptions <$> OA.argument bstr (metavar "PKGNAME")
+        (ListCOptions <$> OA.argument bstr (metavar "PKGNAME" <> action "file")
                       <*> switch (long "no-annotations" <> help "don't add preferred-versions annotations")
                       <*> switch (long "rev-urls" <> help "list revision URLs"))
 
     pullcoParser = PullCabal <$>
-        (PullCOptions <$> OA.argument bstr (metavar "PKGNAME")
+        (PullCOptions <$> OA.argument bstr (metavar "PKGNAME" <> action "file")
                       <*> switch (long "incr-rev" <> help "increment x-revision field")
                       <*> switch (long "force" <> help "force overwriting existing files")
                       <*> optional (OA.argument vrange (metavar "VERSION-CONSTRAINT")))
 
     synccoParser = SyncCabal <$>
-        (SyncCOptions <$> OA.argument str (metavar "CABALFILE")
+        (SyncCOptions <$> OA.argument str (metavar "CABALFILE" <> action "file")
                       <*> switch (long "incr-rev" <> help "increment x-revision field")
                       <*> switch (long "force" <> help "force overwriting local file with older revision"))
 
     pushcoParser = PushCabal <$> (PushCOptions
                              <$> switch (long "incr-rev" <> help "increment x-revision field")
                              <*> switch (long "publish"  <> help "publish revision (review-mode)")
-                             <*> some (OA.argument str (metavar "CABALFILES...")))
+                             <*> some (OA.argument str (metavar "CABALFILES..." <> action "file")))
 
-    pushpcoParser = PushCandidate <$> (PushPCOptions <$> some (OA.argument str (metavar "TARBALLS...")))
+    pushpcoParser = PushCandidate <$> (PushPCOptions <$> some (OA.argument str (metavar "TARBALLS..." <> action "file")))
 
-    checkrevParsser = CheckRevision <$> (CheckROptions <$> OA.argument str (metavar "NEWCABAL")
-                                                       <*> OA.argument str (metavar "OLDCABAL"))
+    checkrevParsser = CheckRevision <$> (CheckROptions <$> OA.argument str (metavar "NEWCABAL" <> action "file")
+                                                       <*> OA.argument str (metavar "OLDCABAL" <> action "file"))
 
 
     indexssParser = IndexShaSum <$> (IndexShaSumOptions <$> switch (long "flat" <> help "flat filesystem layout (used by mirrors)")
-                                                        <*> OA.argument str (metavar "INDEX-TAR")
-                                                        <*> optional (OA.argument str (metavar "BASEDIR")))
+                                                        <*> OA.argument str (metavar "INDEX-TAR" <> action "file")
+                                                        <*> optional (OA.argument str (metavar "BASEDIR" <> action "directory")))
 
     addboundParser = AddBound <$> (AddBoundOptions <$> OA.argument prsc (metavar "DEPENDENCY")
                                                    <*> OA.argument prsc (metavar "VERSIONRANGE")
                                                    <*> many (OA.option str (OA.short 'm' <> OA.long "message" <> metavar "MSG" <> help "Use given MSG as a comment. If multiple -m options are given, their values are concatenated with 'unlines'."))
-                                                   <*> some (OA.argument str (metavar "CABALFILES...")))
+                                                   <*> some (OA.argument str (metavar "CABALFILES..." <> action "file")))
 
     oParser
         = Options <$> switch (long "verbose" <> help "enable verbose output")
