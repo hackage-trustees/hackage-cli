@@ -10,7 +10,7 @@ homepage:            https://github.com/hvr/hackage-cli
 license:             GPL-3.0-or-later
 license-file:        LICENSE
 author:              Herbert Valerio Riedel
-maintainer:          hvr@gnu.org
+maintainer:          hvr@gnu.org, Andreas Abel
 category:            Development
 build-type:          Simple
 tested-with:
@@ -30,11 +30,11 @@ library cabal-revisions
   X-SPDX-License-Identifier: BSD-3-Clause
   default-language:    Haskell2010
   hs-source-dirs:      lib
-  ghc-options:         -Wall
+  ghc-options:         -Wall -Wcompat
 
   build-depends:
-    , base         >= 4.10.0.0 && <4.13
-    , bytestring  ^>= 0.10.4.0
+    , base         >= 4.10.0.0 && < 4.13
+    , bytestring   >= 0.10.4.0 && < 0.12
     , Cabal       ^>= 2.4.1.0
     , containers   >= 0.5.0.0  && < 0.7
     , mtl         ^>= 2.2.2
@@ -46,7 +46,7 @@ library cabal-revisions
 test-suite cabal-revisions-tests
   default-language:    Haskell2010
   hs-source-dirs:      tests
-  ghc-options:         -Wall
+  ghc-options:         -Wall -Wcompat
   type:                exitcode-stdio-1.0
   main-is:             Tests.hs
   build-depends:
@@ -54,7 +54,7 @@ test-suite cabal-revisions-tests
     , bytestring
     , Cabal
     , cabal-revisions
-    , tasty        ^>= 1.2.1
+    , tasty         >= 1.2.1    && < 1.5
     , tasty-golden ^>= 2.3.2
     , filepath     ^>= 1.4.0.0
 
@@ -87,23 +87,23 @@ executable hackage-cli
     , mtl
 
   build-depends:
-    , aeson                 ^>= 1.4.2.0
+    , aeson                  >= 1.4.2.0 && < 1.6
     , deepseq               ^>= 1.4.0.0
     , directory             ^>= 1.2.0.1 || ^>= 1.3.0.0
     , filepath              ^>= 1.4.0.0
     , http-io-streams       ^>= 0.1.0.0
     , io-streams            ^>= 1.5.0.1
-    , lens                  ^>= 4.17
+    , lens                   >= 4.17    && < 5.2
     , netrc                 ^>= 0.2.0.0
-    , optparse-applicative  ^>= 0.14
+    , optparse-applicative   >= 0.14    && < 0.17
     , process-extras        ^>= 0.7.4
-    , semigroups            ^>= 0.18.3
+    , semigroups             >= 0.18.3  && < 0.21
     , stringsearch          ^>= 0.3.6
     , tagsoup               ^>= 0.14
     , tar                   ^>= 0.5
     , text                  ^>= 1.2
-    , time                  ^>= 1.5.0.1 || ^>= 1.6.0.1 || ^>= 1.8.0.2
+    , time                   >= 1.5.0.1 && < 1.13
     , unordered-containers  ^>= 0.2.7
     , zlib                  ^>= 0.6.1
 
-  ghc-options: -Wall -threaded
+  ghc-options: -Wall -Wcompat -threaded
