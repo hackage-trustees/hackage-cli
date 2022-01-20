@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns       #-}
+{-# LANGUAGE CPP                #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE StandaloneDeriving #-}
@@ -19,14 +20,31 @@ import           Data.ByteString        (ByteString)
 import qualified Data.ByteString        as BS
 import qualified Data.ByteString.Lazy   as BSL
 import qualified Data.ByteString.Short  as BSS
-import qualified Data.HashMap.Strict    as HM
 import           Data.Maybe
-import           Data.Monoid
 import           Data.Set               (Set)
 import qualified Data.Set               as Set
 import           Data.String
+import           Data.Text              (Text)
 import           Data.Text.Encoding     as T
 import           System.FilePath
+
+#if !MIN_VERSION_base(4,11,0)
+import           Data.Semigroup         ((<>))
+#endif
+
+#if MIN_VERSION_aeson(2,0,0)
+import qualified Data.Aeson.Key         as Key
+import qualified Data.Aeson.KeyMap      as KeyMap
+
+keyToText :: J.Key -> Text
+keyToText = Key.toText
+#else
+import qualified Data.HashMap.Strict    as KeyMap
+type Key = Text
+
+keyToText :: J.Key -> Text
+keyToText = id
+#endif
 
 data IndexShaSumOptions = IndexShaSumOptions
     { optFlatStyle   :: Bool
@@ -108,21 +126,24 @@ decodePkgJsonFile bs = do
   where
     normaliseFn fn = fromMaybe fn $ stripPrefixBS "<repo>/package/" fn
 
-    packagejson2sha :: J.Value -> Maybe [(BS.ByteString, BS.ByteString)]
+    packagejson2sha :: J.Value -> Maybe [(ByteString, ByteString)]
     packagejson2sha = J.parseMaybe go1
       where
+        go1 :: J.Value -> J.Parser [(ByteString, ByteString)]
         go1 = J.withObject "PackageJson" $ \o -> do
             signed   <- o      J..: "signed"
             targets  <- signed J..: "targets"
             J.withObject "PackageJson.signed.targets" go2 targets
 
-        go2 m = forM (HM.toList m) $ \(k,v) -> do
+        go2 :: J.Object -> J.Parser [(ByteString, ByteString)]
+        go2 m = forM (KeyMap.toList m) $ \(k,v) -> do
             J.withObject ".targets{}" (go3 k) v
 
+        go3 :: J.Key -> J.Object -> J.Parser (ByteString, ByteString)
         go3 k o = do
             hashes <- o J..: "hashes"
             sh256 <- hashes J..: "sha256"
-            return (T.encodeUtf8 k, T.encodeUtf8 sh256)
+            return (T.encodeUtf8 (keyToText k), T.encodeUtf8 sh256)
 
 strictPair :: a -> b -> (a,b)
 strictPair !a !b = (a,b)
