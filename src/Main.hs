@@ -571,28 +571,28 @@ optionsParserInfo
                                                    <*> some (OA.argument str (metavar "CABALFILES..." <> action "file")))
 
     oParser
-        = Options <$> switch (long "verbose" <> help "enable verbose output")
+        = Options <$> switch (long "verbose" <> help "Enable verbose output.")
                   <*> option bstr (long "hostname"  <> metavar "HOSTNAME" <> value "hackage.haskell.org"
                                    <> help "Hackage hostname" <> showDefault)
                   <*> subparser (mconcat [ command "pull-cabal" (info (helper <*> pullcoParser)
-                                                   (progDesc "download .cabal files for a package"))
+                                                   (progDesc "Download .cabal files for a package."))
                                          , command "push-cabal" (info (helper <*> pushcoParser)
-                                                   (progDesc "upload revised .cabal files"))
+                                                   (progDesc "Upload revised .cabal files."))
                                          , command "sync-cabal" (info (helper <*> synccoParser)
-                                                   (progDesc "update/sync local .cabal file with latest revision on Hackage"))
+                                                   (progDesc "Update/sync local .cabal file with latest revision on Hackage."))
                                          , command "push-candidate" (info (helper <*> pushpcoParser)
-                                                   (progDesc "upload package candidate(s)"))
+                                                   (progDesc "Upload package candidate(s)."))
                                          , command "list-versions" (info (helper <*> listcoParser)
-                                                   (progDesc "list versions for a package"))
+                                                   (progDesc "List versions for a package."))
                                          , command "check-revision" (info (helper <*> checkrevParsser)
-                                                   (progDesc "validate revision"))
+                                                   (progDesc "Validate revision."))
                                          , command "index-sha256sum" (info (helper <*> indexssParser)
-                                                   (progDesc "generate sha256sum-format file"))
+                                                   (progDesc "Generate sha256sum-format file."))
                                          , command "add-bound" (info (helper <*> addboundParser)
-                                                   (progDesc "add bound to the library section of a package. .cabal file is edited in place"))
+                                                   (progDesc "Add bound to the library section of a package, unless the bound is redundant. The .cabal file is edited in place."))
                                          ])
 
-    verOption = infoOption verMsg (long "version" <> help "output version information and exit")
+    verOption = infoOption verMsg (long "version" <> help "Output version information and exit.")
       where
         verMsg = "hackage-cli " <> V.showVersion Paths_hackage_cli.version
 
