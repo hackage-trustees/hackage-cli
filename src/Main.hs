@@ -8,7 +8,7 @@
 
 -- |
 -- Module      :  Main
--- Copyright   :  Herbert Valerio Riedel
+-- Copyright   :  Herbert Valerio Riedel, Andreas Abel
 -- SPDX-License-Identifier: GPL-3.0-or-later
 --
 module Main where
@@ -494,6 +494,7 @@ data CheckROptions = CheckROptions
 data AddBoundOptions = AddBoundOptions
   { optABPackageName  :: C.PackageName
   , optABVersionRange :: C.VersionRange
+  , optForce          :: Bool              -- ^ Disable the check whether bound is subsumed by existing constraints.
   , optABMessage      :: [String]
   , optABFiles        :: [FilePath]
   } deriving Show
@@ -567,6 +568,7 @@ optionsParserInfo
 
     addboundParser = AddBound <$> (AddBoundOptions <$> OA.argument prsc (metavar "DEPENDENCY")
                                                    <*> OA.argument prsc (metavar "VERSIONRANGE")
+                                                   <*> OA.switch (long "force" <> help "Add bound even if it is already subsumed by existing constraints.")
                                                    <*> many (OA.option str (OA.short 'm' <> OA.long "message" <> metavar "MSG" <> help "Use given MSG as a comment. If multiple -m options are given, their values are concatenated with 'unlines'."))
                                                    <*> some (OA.argument str (metavar "CABALFILES..." <> action "file")))
 
@@ -799,7 +801,7 @@ mainWithOptions Options {..} = do
                (preLines, postLines) = splitAt lin $ BS8.lines old
                new = BS8.unlines (preLines ++ midLines ++ postLines)
 
-           -- sanity check
+           -- interpretation of version ranges
            let oldGpd = parseGenericPackageDescription' old
                newGpd = parseGenericPackageDescription' new
 
@@ -808,18 +810,33 @@ mainWithOptions Options {..} = do
 
                oldRange' = C.intersectVersionRanges oldRange optABVersionRange
 
-           unless (C.toVersionIntervals newRange == C.toVersionIntervals oldRange') $
-              exitFailureWith $ unwords
-                  [ "Edit failed, version ranges don't match: "
-                  , C.prettyShow oldRange
-                  , "&&"
-                  , C.prettyShow optABVersionRange
-                  , "=/="
-                  , C.prettyShow newRange
-                  ]
+               -- Canonical forms (semantics)
+               oldSem  = C.toVersionIntervals oldRange   -- existing range
+               oldSem' = C.toVersionIntervals oldRange'  -- range after adding the bound (theory)
+               newSem  = C.toVersionIntervals newRange   -- range after adding the bound (practice)
 
-           -- write new version
-           BS.writeFile fp new
+           -- Necessity check: does the addition of the bound change the semantics?
+           -- if not, it can be skipped.
+
+           if not optForce && oldSem' == oldSem then do
+
+             putStrLn $ concat [ "Skipping ", fp, ": bound already subsumed by existing constraints (use --force to add nevertheless)." ]
+
+           else do
+             -- sanity check: did the addition have the intended outcome?
+             unless (newSem == oldSem') $
+                exitFailureWith $ unwords
+                    [ "Edit failed, version ranges don't match: "
+                    , C.prettyShow oldRange
+                    , "&&"
+                    , C.prettyShow optABVersionRange
+                    , "=/="
+                    , C.prettyShow newRange
+                    ]
+
+             -- write new version
+             putStrLn $ unwords [ "Adding bound to", fp ]
+             BS.writeFile fp new
 
    return ()
   where
