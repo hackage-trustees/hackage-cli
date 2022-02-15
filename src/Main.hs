@@ -18,7 +18,6 @@ import qualified Data.Aeson.Types                     as J
 import qualified Data.ByteString.Builder              as Builder
 import           Control.DeepSeq
 import           Control.Exception
-import           Control.Lens
 import           Control.Monad
 import           Control.Monad.State.Strict
 import           Data.Bits
@@ -45,6 +44,11 @@ import qualified Distribution.Pretty                    as C
 import qualified Distribution.Verbosity                 as C
 import qualified Distribution.Version                   as C
 import qualified Distribution.Text                      as C
+
+import           Lens.Micro
+import           Lens.Micro.Mtl
+import           Lens.Micro.TH
+
 import           Network.Http.Client
 import           Network.NetRc
 import           Numeric.Natural                        (Natural)
@@ -94,7 +98,7 @@ data HConn = HConn
 makeLenses ''HConn
 
 -- | Requests that can be issued in current connection before exhausting the 50-req/conn server limit
-hcReqLeft :: Getter HConn Natural -- (Natural -> f Natural) -> HConn -> f HConn
+hcReqLeft :: SimpleGetter HConn Natural -- (Natural -> f Natural) -> HConn -> f HConn
 hcReqLeft = hcReqCnt . to f
   where
     f n | n > lim   = 0

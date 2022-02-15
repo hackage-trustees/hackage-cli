@@ -9,5 +9,4 @@ extra-deps:
 - brotli-streams-0.0.0.0
 - brotli-0.0.0.0
 - http-io-streams-0.1.2.0
-- lens-4.17
 - netrc-0.2.0.0
