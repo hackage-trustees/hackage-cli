@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 -- |
@@ -11,7 +12,9 @@ module CabalEdit
 
 import           Data.ByteString                        (ByteString)
 import qualified Data.ByteString.Char8                  as BS8
-import           Data.Semigroup
+#if !MIN_VERSION_base(4,11,0)
+import           Data.Semigroup                         ((<>))
+#endif
 import qualified Distribution.Parsec.Common             as C
 import qualified Distribution.Parsec.Field              as C
 import qualified Distribution.Parsec.Parser             as C
