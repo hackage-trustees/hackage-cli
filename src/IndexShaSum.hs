@@ -35,14 +35,15 @@ import           Data.Semigroup         ((<>))
 #if MIN_VERSION_aeson(2,0,0)
 import qualified Data.Aeson.Key         as Key
 import qualified Data.Aeson.KeyMap      as KeyMap
+type Key = J.Key
 
-keyToText :: J.Key -> Text
+keyToText :: Key -> Text
 keyToText = Key.toText
 #else
 import qualified Data.HashMap.Strict    as KeyMap
 type Key = Text
 
-keyToText :: J.Key -> Text
+keyToText :: Key -> Text
 keyToText = id
 #endif
 
@@ -139,7 +140,7 @@ decodePkgJsonFile bs = do
         go2 m = forM (KeyMap.toList m) $ \(k,v) -> do
             J.withObject ".targets{}" (go3 k) v
 
-        go3 :: J.Key -> J.Object -> J.Parser (ByteString, ByteString)
+        go3 :: Key -> J.Object -> J.Parser (ByteString, ByteString)
         go3 k o = do
             hashes <- o J..: "hashes"
             sh256 <- hashes J..: "sha256"
