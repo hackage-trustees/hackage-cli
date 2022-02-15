@@ -15,9 +15,9 @@ import qualified Data.ByteString.Char8                  as BS8
 #if !MIN_VERSION_base(4,11,0)
 import           Data.Semigroup                         ((<>))
 #endif
-import qualified Distribution.Parsec.Common             as C
-import qualified Distribution.Parsec.Field              as C
-import qualified Distribution.Parsec.Parser             as C
+import qualified Distribution.Fields.Field              as C
+import qualified Distribution.Fields.Parser             as C
+import qualified Distribution.Parsec.Position           as C (Position(Position))
 
 type PkgRev  = Word
 
