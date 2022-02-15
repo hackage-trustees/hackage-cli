@@ -1,0 +1,3 @@
+# Andreas Abel, 2022-02-15
+# Treat golden values as binary to avoid CRLF issues under Windows
+/fixtures/*.diff        -text
