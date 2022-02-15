@@ -1,0 +1,9 @@
+resolver: lts-14.27
+
+packages:
+- .
+
+extra-deps:
+- http-io-streams-0.1.2.0
+- brotli-streams-0.0.0.0
+- brotli-0.0.0.0
