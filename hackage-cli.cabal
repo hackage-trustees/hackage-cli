@@ -13,10 +13,12 @@ author:              Herbert Valerio Riedel
 maintainer:          hvr@gnu.org, Andreas Abel
 category:            Development
 build-type:          Simple
+
 tested-with:
-  GHC == 8.2.2
-  GHC == 8.4.4
+  -- Keep in descending order.
   GHC == 8.6.5
+  GHC == 8.4.4
+  GHC == 8.2.2
 
 extra-source-files:
   fixtures/*.diff
@@ -37,7 +39,7 @@ library cabal-revisions
     , bytestring   >= 0.10.4.0 && < 0.12
     , Cabal       ^>= 2.4.1.0
     , containers   >= 0.5.0.0  && < 0.7
-    , mtl         ^>= 2.2.2
+    , mtl          >= 2.2.2    && < 2.4
     , pretty      ^>= 1.1.2
 
   exposed-modules:
