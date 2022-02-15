@@ -4,4 +4,5 @@
 /dist/
 /dist-newstyle/
 .ghc.environment.*
-/stack.yaml.lock
+/stack*.yaml.lock
+/.stack-work/
