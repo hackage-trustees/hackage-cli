@@ -1,5 +1,5 @@
-resolver: lts-14.27
-compiler: ghc-8.6.5
+resolver: lts-16.31
+compiler: ghc-8.8.4
 
 packages:
 - .
@@ -15,8 +15,7 @@ extra-deps:
 - base64-bytestring-1.1.0.0
 - ghc-byteorder-4.11.0.0.10
 - xor-0.0.1.0
-  # Missing from lts-14.27:
-- Cabal-3.0.2.0
+  # Missing from lts-16.31
 - brotli-0.0.0.0
 - brotli-streams-0.0.0.0
 - http-io-streams-0.1.6.0
