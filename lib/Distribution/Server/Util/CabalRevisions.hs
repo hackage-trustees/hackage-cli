@@ -161,7 +161,7 @@ checkCabalFileRevision checkXRevision old new = do
 
     -- things can move, pos can change
     eqPWarning :: PWarning -> PWarning -> Bool
-    eqPWarning (PWarning t _pos s) (PWarning t' _pos' s') = 
+    eqPWarning (PWarning t _pos s) (PWarning t' _pos' s') =
         t == t' && s == s'
 
     checkParserWarnings :: FilePath -> Check [PWarning]
@@ -460,7 +460,7 @@ class (Ord (DepKey d), Pretty vr, Eq vr) => IsDependency vr d | d -> vr where
     depTypeName    :: Proxy d -> String
     depKey         :: d -> DepKey d
     depKeyShow     :: Proxy d -> DepKey d -> String
-    depVerRg       :: d -> vr 
+    depVerRg       :: d -> vr
     reconstructDep :: DepKey d -> vr -> d
 
     depInAddWhitelist :: d -> Bool
