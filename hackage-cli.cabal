@@ -1,6 +1,6 @@
 cabal-version:       2.4
 name:                hackage-cli
-version:             0.1.0.0
+version:             0.0.2.4
 
 synopsis:            CLI tool for Hackage
 description:
