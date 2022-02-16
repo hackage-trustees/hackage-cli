@@ -27,6 +27,7 @@ import qualified Data.ByteString.Char8                  as BS8
 import qualified Data.ByteString.Lazy                   as BSL
 import qualified Data.ByteString.Search                 as BSS
 import           Data.Char                              (isSpace)
+import           Data.Foldable                          (toList)
 import qualified Data.List                              as List
 import           Data.Maybe
 import           Data.Time.Clock.POSIX                  (getPOSIXTime)
@@ -909,7 +910,7 @@ mainWithOptions Options {..} = do
 
     parseGenericPackageDescription' bs =
         case snd $ C.runParseResult $ C.parseGenericPackageDescription bs of
-            Left (_, es) -> error $ List.intercalate "\n" $ map (C.showPError "<.cabal>") es
+            Left (_, es) -> error $ List.intercalate "\n" $ map (C.showPError "<.cabal>") $ toList es
             Right x      -> x
 
     extractRange gpd pkgName = case vss of

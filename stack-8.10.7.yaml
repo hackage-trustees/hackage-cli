@@ -1,0 +1,14 @@
+resolver: lts-18.25
+compiler: ghc-8.10.7
+
+packages:
+- .
+
+extra-deps:
+- brotli-0.0.0.0
+- brotli-streams-0.0.0.0
+- http-io-streams-0.1.6.0@rev:0
+- netrc-0.2.0.0
+- xor-0.0.1.0
+# For http-io-streams-0.1.6.0@rev:1
+# - base64-bytestring-1.2.1.0
