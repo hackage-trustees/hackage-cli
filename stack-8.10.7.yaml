@@ -1,10 +1,11 @@
-resolver: lts-18.25
+resolver: lts-18.26
 compiler: ghc-8.10.7
 
 packages:
 - .
 
 extra-deps:
+- Cabal-3.4.1.0
 - brotli-0.0.0.0
 - brotli-streams-0.0.0.0
 - http-io-streams-0.1.6.0@rev:0

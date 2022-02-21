@@ -24,7 +24,7 @@ module Distribution.Server.Util.CabalRevisions
     ) where
 
 -- NB: This module avoids to import any hackage-server modules
-import Distribution.CabalSpecVersion (cabalSpecLatest)
+import Distribution.CabalSpecVersion (CabalSpecVersion(..), cabalSpecLatest, showCabalSpecVersion)
 import Distribution.Types.Dependency
 import Distribution.Types.ExeDependency
 import Distribution.Types.PkgconfigDependency
@@ -44,7 +44,6 @@ import Distribution.PackageDescription.Parsec (parseGenericPackageDescription, r
 import Distribution.PackageDescription.FieldGrammar (sourceRepoFieldGrammar)
 import Distribution.PackageDescription.Check
 import Distribution.Parsec (showPWarning, showPError, PWarning (..))
-import Distribution.Simple.LocalBuildInfo (showComponentName)
 import Distribution.Utils.ShortText
 import Text.PrettyPrint as Doc
          ((<+>), colon, text, Doc, hsep, punctuate)
@@ -55,6 +54,7 @@ import Control.Monad.Except  (ExceptT, runExceptT, throwError)
 import Control.Monad.Writer (MonadWriter(..), Writer, runWriter)
 import Data.Foldable (for_)
 import Data.List
+         ((\\), deleteBy, intercalate)
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy.Char8 as LBS8
@@ -181,8 +181,8 @@ checkCabalFileRevision checkXRevision old new = do
 
 checkGenericPackageDescription :: Bool -> Check GenericPackageDescription
 checkGenericPackageDescription checkXRevision
-    (GenericPackageDescription descrA flagsA libsA sublibsA flibsA exesA testsA benchsA)
-    (GenericPackageDescription descrB flagsB libsB sublibsB flibsB exesB testsB benchsB) = do
+    (GenericPackageDescription descrA _versionA flagsA libsA sublibsA flibsA exesA testsA benchsA)
+    (GenericPackageDescription descrB _versionB flagsB libsB sublibsB flibsB exesB testsB benchsB) = do
 
     checkPackageDescriptions checkXRevision descrA descrB
 
@@ -222,7 +222,7 @@ checkGenericPackageDescription checkXRevision
     withComponentName' f        condTree  = (f,             condTree)
 
 
-checkFlag :: Check Flag
+checkFlag :: Check PackageFlag
 checkFlag flagOld flagNew = do
     -- This check is applied via 'checkList' and for simplicity we
     -- disallow renaming/reordering flags (even though reordering
@@ -260,7 +260,7 @@ checkFlag flagOld flagNew = do
 checkPackageDescriptions :: Bool -> Check PackageDescription
 checkPackageDescriptions checkXRevision
   pdA@(PackageDescription
-     { specVersionRaw  = _specVersionRawA
+     { specVersion     = _specVersionA
      , package         = packageIdA
      , licenseRaw      = licenseRawA
      , licenseFiles    = licenseFilesA
@@ -292,7 +292,7 @@ checkPackageDescriptions checkXRevision
      , extraDocFiles   = extraDocFilesA
      })
   pdB@(PackageDescription
-     { specVersionRaw  = _specVersionRawB
+     { specVersion     = _specVersionB
      , package         = packageIdB
      , licenseRaw      = licenseRawB
      , licenseFiles    = licenseFilesB
@@ -368,9 +368,9 @@ checkPackageDescriptions checkXRevision
 
 checkSpecVersionRaw :: Check PackageDescription
 checkSpecVersionRaw pdA pdB
-  | specVersionA `withinRange` range110To120
-  , specVersionB `withinRange` range110To120
-  = changesOk "cabal-version" prettyShow specVersionA specVersionB
+  | range110To120 specVersionA
+  , range110To120 specVersionB
+  = changesOk "cabal-version" showCabalSpecVersion specVersionA specVersionB
 
   | otherwise
   = checkSame "Cannot change the Cabal spec version"
@@ -381,8 +381,7 @@ checkSpecVersionRaw pdA pdB
 
     -- nothing interesting changed within the  Cabal >=1.10 && <1.21 range
     -- therefore we allow to change the spec version within this interval
-    range110To120 = (orLaterVersion (mkVersion [1,10])) `intersectVersionRanges`
-                    (earlierVersion (mkVersion [1,21]))
+    range110To120 v = CabalSpecV1_10 >= v && v <= CabalSpecV1_20
 
 checkRevision :: Check [(String, String)]
 checkRevision customFieldsA customFieldsB =
@@ -476,7 +475,7 @@ instance IsDependency VersionRange Dependency where
     depKey (Dependency pkgname _ _) = pkgname
     depKeyShow Proxy              = prettyShow''
     depVerRg (Dependency _ vr _)  = vr
-    reconstructDep                = \n vr -> Dependency n vr Set.empty
+    reconstructDep                = \n vr -> Dependency n vr mainLibSet
 
     depInAddWhitelist (Dependency pn _ _) = pn `elem`
     -- Special case: there are some pretty weird broken packages out there, see
