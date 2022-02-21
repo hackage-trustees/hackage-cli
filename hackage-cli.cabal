@@ -5,7 +5,7 @@ version:             0.0.3.4
 synopsis:            CLI tool for Hackage
 description:
   With @hackage-cli@ you can manage @.cabal@ files,
-  e.g. upload revised variants.
+  e.g. (bulk-)upload revised variants.
 homepage:            https://github.com/hvr/hackage-cli
 license:             GPL-3.0-or-later
 license-file:        LICENSE
@@ -24,6 +24,8 @@ tested-with:
   GHC == 8.2.2
 
 extra-source-files:
+  CHANGELOG.md
+  README.md
   fixtures/*.diff
   fixtures/*.cabal
 
