@@ -16,7 +16,7 @@ extra-deps:
 - ghc-byteorder-4.11.0.0.10
 - xor-0.0.1.0
   # Missing from lts-14.27:
-- Cabal-3.2.1.0
+- Cabal-3.4.1.0
 - brotli-0.0.0.0
 - brotli-streams-0.0.0.0
 - http-io-streams-0.1.6.0@rev:0

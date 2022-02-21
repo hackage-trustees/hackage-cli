@@ -2,4 +2,4 @@ OK
 Normal
 the library component's library dependency on 'diagrams-lib'
 - <1.4
-+ -any
++ >=0

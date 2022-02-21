@@ -1,0 +1,12 @@
+resolver: nightly-2022-02-19
+compiler: ghc-9.0.2
+
+packages:
+- .
+
+extra-deps:
+- brotli-0.0.0.0
+- brotli-streams-0.0.0.0
+- http-io-streams-0.1.6.0
+- netrc-0.2.0.0
+- xor-0.0.1.1
