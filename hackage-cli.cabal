@@ -1,6 +1,6 @@
 cabal-version:       2.4
 name:                hackage-cli
-version:             0.1.0.0
+version:             0.0.3.0
 
 synopsis:            CLI tool for Hackage
 description:
@@ -10,7 +10,7 @@ homepage:            https://github.com/hvr/hackage-cli
 license:             GPL-3.0-or-later
 license-file:        LICENSE
 author:              Herbert Valerio Riedel
-maintainer:          hvr@gnu.org, Andreas Abel
+maintainer:          Andreas Abel
 category:            Development
 build-type:          Simple
 
