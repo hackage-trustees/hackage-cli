@@ -5,7 +5,7 @@ A command-line tool to manage
 on Hackage.
 
 Caveat: this is a developer tool and work-in-progress.
-See known bugs at https://github.com/hackage-trustees/hackage-cli/issues.
+Check known bugs at the [issue tracker](https://github.com/hackage-trustees/hackage-cli/issues).
 
 ## Use case: bulk revision
 
