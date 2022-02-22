@@ -1,6 +1,6 @@
 # `hackage-cli`
 
-A command-line tool to manage
+A command-line tool to manage package metadata
 [revisions](https://github.com/haskell-infra/hackage-trustees/blob/master/revisions-information.md)
 on Hackage.
 
