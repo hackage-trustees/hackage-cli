@@ -7,7 +7,40 @@ on Hackage.
 Caveat: this is a developer tool and work-in-progress.
 Check known bugs at the [issue tracker](https://github.com/hackage-trustees/hackage-cli/issues).
 
-## Use case: bulk revision
+## Command-line reference
+
+```
+hackage-cli - CLI tool for Hackage
+
+Usage: hackage-cli [--version] [--verbose] [--hostname HOSTNAME] COMMAND
+
+Available options:
+  -h,--help                Show this help text
+  --version                output version information and exit
+  --verbose                enable verbose output
+  --hostname HOSTNAME      Hackage hostname (default: "hackage.haskell.org")
+
+Available commands:
+  pull-cabal               download .cabal files for a package
+  push-cabal               upload revised .cabal files
+  sync-cabal               upadate/sync local .cabal file with latest revision
+                           on Hackage
+  push-candidate           upload package candidate(s)
+  list-versions            list versions for a package
+  check-revision           validate revision
+  index-sha256sum          generate sha256sum-format file
+  add-bound                add bound to the library section of a package. .cabal
+                           file is edited in place
+
+Each command has a sub-`--help` text. Hackage credentials are expected to be
+stored in an `${HOME}/.netrc`-entry for the respective Hackage hostname. E.g.
+"machine hackage.haskell.org login MyUserName password TrustNo1". All
+interactions with Hackage occur TLS-encrypted via the HTTPS protocol.
+```
+
+(Section created 2015-04-26, last updated 2018-03-21.)
+
+## How to: bulk revision
 
 Suppose that all versions starting with `1.2.3` of the package `pkg-x`
 on hackage need the additional bound `< 4.5.6` on their dependency
@@ -70,39 +103,6 @@ We walk through a typical workflow:
    Adding the flag `--publish` will actually commit the revisions to Hackage.
 
 (Section created 2022-02-21.)
-
-## Command-line reference
-
-```
-hackage-cli - CLI tool for Hackage
-
-Usage: hackage-cli [--version] [--verbose] [--hostname HOSTNAME] COMMAND
-
-Available options:
-  -h,--help                Show this help text
-  --version                output version information and exit
-  --verbose                enable verbose output
-  --hostname HOSTNAME      Hackage hostname (default: "hackage.haskell.org")
-
-Available commands:
-  pull-cabal               download .cabal files for a package
-  push-cabal               upload revised .cabal files
-  sync-cabal               upadate/sync local .cabal file with latest revision
-                           on Hackage
-  push-candidate           upload package candidate(s)
-  list-versions            list versions for a package
-  check-revision           validate revision
-  index-sha256sum          generate sha256sum-format file
-  add-bound                add bound to the library section of a package. .cabal
-                           file is edited in place
-
-Each command has a sub-`--help` text. Hackage credentials are expected to be
-stored in an `${HOME}/.netrc`-entry for the respective Hackage hostname. E.g.
-"machine hackage.haskell.org login MyUserName password TrustNo1". All
-interactions with Hackage occur TLS-encrypted via the HTTPS protocol.
-```
-
-(Section created 2015-04-26, last updated 2018-03-21.)
 
 ## License
 
