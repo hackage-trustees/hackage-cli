@@ -1,3 +1,10 @@
+# Changelog for hackage-cli
+
+## 0.0.3.6
+
+First release to hackage.
+Builds with `Cabal >= 3.4` and `GHC 8.2 - 9.0`.
+
 # Pre-release versions (February 2022)
 
 ## 0.0.3.4
