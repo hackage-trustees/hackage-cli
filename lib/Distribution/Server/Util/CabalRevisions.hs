@@ -50,8 +50,9 @@ import Text.PrettyPrint as Doc
 
 import Control.Applicative
 import Control.Monad
-import Control.Monad.Except  (ExceptT, runExceptT, throwError)
+import Control.Monad.Except (throwError)
 import Control.Monad.Writer (MonadWriter(..), Writer, runWriter)
+import Control.Monad.Trans.Except (ExceptT, runExceptT)
 import Data.Foldable (for_)
 import Data.List
          ((\\), deleteBy, intercalate)

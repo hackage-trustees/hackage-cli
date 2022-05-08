@@ -48,6 +48,7 @@ library cabal-revisions
     , containers   >= 0.5.0.0  && < 0.7
     , mtl          >= 2.2.2    && < 2.4
     , pretty      ^>= 1.1.2
+    , transformers
 
   exposed-modules:
     Distribution.Server.Util.CabalRevisions
