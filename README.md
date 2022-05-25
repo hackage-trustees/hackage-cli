@@ -1,3 +1,9 @@
+[![Hackage version](https://img.shields.io/hackage/v/hackage-cli.svg?label=Hackage&color=informational)](http://hackage.haskell.org/package/hackage-cli)
+[![Stackage LTS version](https://www.stackage.org/package/hackage-cli/badge/lts?label=Stackage)](https://www.stackage.org/package/hackage-cli)
+[![hackage-cli on Stackage Nightly](https://stackage.org/package/hackage-cli/badge/nightly)](https://stackage.org/nightly/package/hackage-cli)
+[![Cabal build](https://github.com/hackage-trustees/hackage-cli/workflows/Haskell-CI/badge.svg)](https://github.com/hackage-trustees/hackage-cli/actions)
+[![Stack build](https://github.com/hackage-trustees/hackage-cli/workflows/Build%20with%20Stack/badge.svg)](https://github.com/hackage-trustees/hackage-cli/actions)
+
 # `hackage-cli`
 
 A command-line tool to manage package metadata

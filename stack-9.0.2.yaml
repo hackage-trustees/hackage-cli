@@ -1,12 +1,6 @@
-resolver: lts-19.5
+resolver: lts-19.8
 compiler: ghc-9.0.2
 compiler-check: match-exact
 
 packages:
 - .
-
-extra-deps:
-- brotli-0.0.0.0
-- brotli-streams-0.0.0.0
-- http-io-streams-0.1.6.1
-- xor-0.0.1.1
