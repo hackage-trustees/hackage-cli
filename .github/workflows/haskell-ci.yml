@@ -8,18 +8,22 @@
 #
 # For more information, see https://github.com/haskell-CI/haskell-ci
 #
-# version: 0.14.3.20220416
+# version: 0.15.20220504
 #
-# REGENDATA ("0.14.3.20220416",["github","hackage-cli.cabal"])
+# REGENDATA ("0.15.20220504",["github","hackage-cli.cabal"])
 #
 name: Haskell-CI
 on:
-  - push
-  - pull_request
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
 jobs:
   linux:
     name: Haskell-CI - Linux - ${{ matrix.compiler }}
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     timeout-minutes:
       60
     container:
@@ -227,7 +231,7 @@ jobs:
           ${CABAL} -vnormal check
       - name: haddock
         run: |
-          $CABAL v2-haddock $ARG_COMPILER --with-haddock $HADDOCK $ARG_TESTS $ARG_BENCH all
+          $CABAL v2-haddock --haddock-all $ARG_COMPILER --with-haddock $HADDOCK $ARG_TESTS $ARG_BENCH all
       - name: unconstrained build
         run: |
           rm -f cabal.project.local
