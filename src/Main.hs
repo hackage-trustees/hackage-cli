@@ -13,12 +13,15 @@
 --
 module Main where
 
-import qualified Data.Aeson                           as J
-import qualified Data.Aeson.Types                     as J
-import qualified Data.ByteString.Builder              as Builder
+import           Prelude                                hiding (log)
+
+import qualified Data.Aeson                             as J
+import qualified Data.Aeson.Types                       as J
+import qualified Data.ByteString.Builder                as Builder
 import           Control.DeepSeq
 import           Control.Exception
 import           Control.Monad
+import           Control.Monad.Except                   (MonadError(..), ExceptT, runExceptT)
 import           Control.Monad.State.Strict
 import           Data.Bits
 import           Data.ByteString                        (ByteString)
@@ -58,6 +61,7 @@ import           System.Directory
 import           System.Environment                     (lookupEnv)
 import           System.Exit                            (ExitCode (..), exitFailure)
 import           System.FilePath
+import           System.IO                              (hPutStrLn, stderr)
 import           System.IO.Error                        (tryIOError, isDoesNotExistError)
 import qualified System.IO.Streams                      as Streams
 import           System.Process.ByteString              (readProcessWithExitCode)
@@ -495,13 +499,14 @@ data CheckROptions = CheckROptions
   , optCROrig :: FilePath
   } deriving Show
 
-data AddBoundOptions = AddBoundOptions
+type AddBoundOptions = AddBoundOptions' [FilePath]
+data AddBoundOptions' a = AddBoundOptions
   { optABPackageName  :: C.PackageName
   , optABVersionRange :: C.VersionRange
   , optForce          :: Bool              -- ^ Disable the check whether bound is subsumed by existing constraints.
   , optABMessage      :: [String]
-  , optABFiles        :: [FilePath]
-  } deriving Show
+  , optABFiles        :: a                 -- ^ One or several files.
+  } deriving (Show, Functor)
 
 data Command
     = ListCabal !ListCOptions
@@ -782,65 +787,14 @@ mainWithOptions Options {..} = do
 
        IndexShaSum opts -> IndexShaSum.run opts
 
-
-       AddBound AddBoundOptions {..} -> forM_ optABFiles $ \fp -> do
-           old <- BS.readFile fp
-
-           -- idea is simple:
-           -- - .cabal is line oriented file
-           -- - find "library" section start
-           -- - bonus: look of an indentation used from the next field/section there
-           -- - insert data into a bytestring "manually"
-           fs <- either (exitFailureWith . show) return $ C.readFields old
-           (lin, indent) <- maybe
-               (exitFailureWith $ "Cannot find library section in " ++ fp)
-               return
-               (findLibrarySection fs)
-
-           let msgLines  = map ("-- " ++) optABMessage
-               bdLine    = "build-depends: " ++ C.prettyShow optABPackageName ++ " " ++ C.prettyShow optABVersionRange
-               midLines  = [ BS8.pack $ replicate indent ' ' ++ l
-                           | l <- msgLines ++ [bdLine]
-                           ] ++ [""] -- also add an empty line separator
-               (preLines, postLines) = splitAt lin $ BS8.lines old
-               new = BS8.unlines (preLines ++ midLines ++ postLines)
-
-           -- interpretation of version ranges
-           let oldGpd = parseGenericPackageDescription' old
-               newGpd = parseGenericPackageDescription' new
-
-               oldRange = extractRange oldGpd optABPackageName
-               newRange = extractRange newGpd optABPackageName
-
-               oldRange' = C.intersectVersionRanges oldRange optABVersionRange
-
-               -- Canonical forms (semantics)
-               oldSem  = C.toVersionIntervals oldRange   -- existing range
-               oldSem' = C.toVersionIntervals oldRange'  -- range after adding the bound (theory)
-               newSem  = C.toVersionIntervals newRange   -- range after adding the bound (practice)
-
-           -- Necessity check: does the addition of the bound change the semantics?
-           -- if not, it can be skipped.
-
-           if not optForce && oldSem' == oldSem then do
-
-             putStrLn $ concat [ "Skipping ", fp, ": bound already subsumed by existing constraints (use --force to add nevertheless)." ]
-
-           else do
-             -- sanity check: did the addition have the intended outcome?
-             unless (newSem == oldSem') $
-                exitFailureWith $ unwords
-                    [ "Edit failed, version ranges don't match: "
-                    , C.prettyShow oldRange
-                    , "&&"
-                    , C.prettyShow optABVersionRange
-                    , "=/="
-                    , C.prettyShow newRange
-                    ]
-
-             -- write new version
-             putStrLn $ unwords [ "Adding bound to", fp ]
-             BS.writeFile fp new
+       AddBound ab@AddBoundOptions{ optABFiles } -> do
+         -- Run add-bound for all given cabal files, skipping to next on error.
+         results <- forM optABFiles $ \fp -> do
+           runExceptT (addBound (fp <$ ab)) >>= \case
+             Left err -> False <$ log err
+             Right () -> return True
+         -- If add-bound failed for one cabal file, report failure.
+         unless (and results) $ exitFailure
 
    return ()
   where
@@ -904,27 +858,95 @@ mainWithOptions Options {..} = do
         pdesc0 = parseGenericPackageDescription' cabdata0
         (_,_,xrev0) = pkgDescToPkgIdXrev pdesc0
 
-    exitFailureWith e = do
-        putStrLn e
-        exitFailure
+parseGenericPackageDescription' :: ByteString -> LC.GenericPackageDescription
+parseGenericPackageDescription' bs =
+    case snd $ C.runParseResult $ C.parseGenericPackageDescription bs of
+        Left (_, es) -> error $ List.intercalate "\n" $ map (C.showPError "<.cabal>") $ toList es
+        Right x      -> x
 
-    parseGenericPackageDescription' bs =
-        case snd $ C.runParseResult $ C.parseGenericPackageDescription bs of
-            Left (_, es) -> error $ List.intercalate "\n" $ map (C.showPError "<.cabal>") $ toList es
-            Right x      -> x
+extractRange :: LC.GenericPackageDescription -> C.PackageName -> C.VersionRange
+extractRange gpd pkgName = case vss of
+    []     -> C.noVersion
+    (v:vs) -> List.foldl' C.intersectVersionRanges v vs
+  where
+    vss = gpd ^.. LC.condLibrary . _Just . condTreeDataL . LC.targetBuildDepends . traverse . to ext . _Just
+    ext (C.Dependency pkgName' vr _)
+       | pkgName == pkgName' = Just vr
+       | otherwise           = Nothing
 
-    extractRange gpd pkgName = case vss of
-        []     -> C.noVersion
-        (v:vs) -> List.foldl' C.intersectVersionRanges v vs
-      where
-        vss = gpd ^.. LC.condLibrary . _Just . condTreeDataL . LC.targetBuildDepends . traverse . to ext . _Just
-        ext (C.Dependency pkgName' vr _)
-           | pkgName == pkgName' = Just vr
-           | otherwise           = Nothing
+condTreeDataL :: Functor f => (a -> f a) -> C.CondTree v c a -> f (C.CondTree v c a)
+condTreeDataL f (C.CondNode x c cs) = f x <&> \y -> C.CondNode y c cs
 
-    condTreeDataL :: Functor f => (a -> f a) -> C.CondTree v c a -> f (C.CondTree v c a)
-    condTreeDataL f (C.CondNode x c cs) = f x <&> \y -> C.CondNode y c cs
 
+-- | Try to add the given bound to the given cabal file.
+--
+-- Non-fatal errors (like parse errors) are reported in the Except monad.
+--
+addBound :: AddBoundOptions' FilePath -> ExceptT String IO ()
+addBound AddBoundOptions{ optABPackageName, optABVersionRange, optForce, optABMessage, optABFiles = fp } = do
+
+  old <- liftIO $ BS.readFile fp
+
+  -- idea is simple:
+  -- - .cabal is line oriented file
+  -- - find "library" section start
+  -- - bonus: look of an indentation used from the next field/section there
+  -- - insert data into a bytestring "manually"
+  fs <- either (\ err -> throwError $ unwords ["Parsing", fp, "failed:", show err]) return $
+      C.readFields old
+  (lin, indent) <- maybe
+      (throwError $ "Cannot find library section in " ++ fp)
+      return
+      (findLibrarySection fs)
+
+  let msgLines  = map ("-- " ++) optABMessage
+      bdLine    = "build-depends: " ++ C.prettyShow optABPackageName ++ " " ++ C.prettyShow optABVersionRange
+      midLines  = [ BS8.pack $ replicate indent ' ' ++ l
+                  | l <- msgLines ++ [bdLine]
+                  ] ++ [""] -- also add an empty line separator
+      (preLines, postLines) = splitAt lin $ BS8.lines old
+      new = BS8.unlines (preLines ++ midLines ++ postLines)
+
+  -- interpretation of version ranges
+  let oldGpd = parseGenericPackageDescription' old
+      newGpd = parseGenericPackageDescription' new
+
+      oldRange = extractRange oldGpd optABPackageName
+      newRange = extractRange newGpd optABPackageName
+
+      oldRange' = C.intersectVersionRanges oldRange optABVersionRange
+
+      -- Canonical forms (semantics)
+      oldSem  = C.toVersionIntervals oldRange   -- existing range
+      oldSem' = C.toVersionIntervals oldRange'  -- range after adding the bound (theory)
+      newSem  = C.toVersionIntervals newRange   -- range after adding the bound (practice)
+
+  -- Necessity check: does the addition of the bound change the semantics?
+  -- if not, it can be skipped.
+
+  if not optForce && oldSem' == oldSem then do
+
+    log $ concat [ "Skipping ", fp, ": bound already subsumed by existing constraints (use --force to add nevertheless)." ]
+
+  else do
+    -- sanity check: did the addition have the intended outcome?
+    unless (newSem == oldSem') $
+       throwError $ unwords
+           [ "Edit failed, version ranges don't match: "
+           , C.prettyShow oldRange
+           , "&&"
+           , C.prettyShow optABVersionRange
+           , "=/="
+           , C.prettyShow newRange
+           ]
+
+    -- write new version
+    log $ unwords [ "Adding bound to", fp ]
+    liftIO $ BS.writeFile fp new
+
+-- | Print line to 'stderr'.
+log :: MonadIO m => String -> m ()
+log = liftIO . hPutStrLn stderr
 
 -- | Try to clean-up HTML fragments to be more readable
 tidyHtml :: ByteString -> ByteString
