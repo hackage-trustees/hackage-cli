@@ -76,8 +76,10 @@ We walk through a typical workflow:
      build-depends: pkg-y < 4.5.6
    ```
    to the `library` section of each of the `.cabal` files.
-   There must be exactly one `library` section, otherwise `hackage-cli` will crash
-   or produce a garbage result.
+   If files without a `library` section are encountered (as in ancient `.cabal` formats),
+   they will be skipped, but the final exitcode of `hackage-cli` will be 1 (error).
+   If a file contains more than one `library` section, `hackage-cli` will take the first
+   such section.  (This might not produce the intended result, so double-checking is advised.)
 
    If this bound does not further constrain the existing version range
    for `pkg-y`, it will not be added unless `--force` is used.
