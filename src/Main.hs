@@ -446,6 +446,10 @@ nsplitAt n = splitAt i
   where
     i = fromMaybe (error "nsplitAt: overflow") $ toIntegralSized n
 
+-- | Returns the position @(line, indentation)@ where to insert the
+-- new @build-depends:@ immediately after the first @library@ section,
+-- if any.
+--
 findLibrarySection :: [C.Field C.Position] -> Maybe (Int, Int)
 findLibrarySection [] = Nothing
 findLibrarySection (C.Section (C.Name (C.Position row _) "library") [] fs : _) =
