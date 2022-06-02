@@ -5,14 +5,14 @@ compiler-check: match-exact
 packages:
 - .
 
-# Force use of newer HsOpenSSL, used by http-iostreams
-drop-packages:
-- HsOpenSSL
+# # Force use of newer HsOpenSSL, used by http-io-streams
+# drop-packages:
+# - HsOpenSSL
 
 extra-deps:
   # HSOpenSSL-0.11.6.1: Windows: Use libcrypto instead of eay; allow pkg-config.
 - HsOpenSSL-0.11.6.1
-  # Needed because of drop-packages:
+  # # Needed because of drop-packages:
 - base64-bytestring-1.1.0.0
 - ghc-byteorder-4.11.0.0.10
 - xor-0.0.1.0
