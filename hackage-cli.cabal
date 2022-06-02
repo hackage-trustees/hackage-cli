@@ -17,7 +17,8 @@ build-type:          Simple
 
 tested-with:
   -- Keep in descending order.
-  GHC == 9.2.2
+  GHC == 9.4.1
+  GHC == 9.2.3
   GHC == 9.0.2
   GHC == 8.10.7
   GHC == 8.8.4
@@ -42,7 +43,7 @@ library cabal-revisions
   ghc-options:         -Wall -Wcompat
 
   build-depends:
-    , base         >= 4.10.0.0 && < 4.17
+    , base         >= 4.10.0.0 && < 4.18
     , bytestring   >= 0.10.4.0 && < 0.12
     , Cabal        >= 3.4      && < 3.7
     , containers   >= 0.5.0.0  && < 0.7

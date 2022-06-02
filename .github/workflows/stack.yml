@@ -20,6 +20,8 @@ jobs:
             ghc-ver: 8.10.7
           - os: windows-latest
             ghc-ver: 8.10.7
+          - os: windows-latest
+            ghc-ver: 8.6.5
     env:
       ARGS: "--stack-yaml stack-${{ matrix.ghc-ver }}.yaml --no-terminal --system-ghc"
 
