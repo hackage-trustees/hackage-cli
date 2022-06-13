@@ -48,6 +48,9 @@ import qualified Distribution.Pretty                    as C
 import qualified Distribution.Verbosity                 as C
 import qualified Distribution.Version                   as C
 import qualified Distribution.Text                      as C
+#if MIN_VERSION_Cabal(3,7,0)
+import qualified Distribution.Simple.PackageDescription as C
+#endif
 
 import           Lens.Micro
 import           Lens.Micro.Mtl
