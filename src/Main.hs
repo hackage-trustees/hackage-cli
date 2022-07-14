@@ -872,9 +872,8 @@ parseGenericPackageDescription' bs =
         Right x      -> x
 
 extractRange :: LC.GenericPackageDescription -> C.PackageName -> C.VersionRange
-extractRange gpd pkgName = case vss of
-    []     -> C.noVersion
-    (v:vs) -> List.foldl' C.intersectVersionRanges v vs
+extractRange gpd pkgName =
+    List.foldl' C.intersectVersionRanges C.anyVersion vss
   where
     vss = gpd ^.. LC.condLibrary . _Just . condTreeDataL . LC.targetBuildDepends . traverse . to ext . _Just
     ext (C.Dependency pkgName' vr _)
@@ -938,8 +937,9 @@ addBound AddBoundOptions{ optABPackageName, optABVersionRange, optForce, optABMe
   else do
     -- sanity check: did the addition have the intended outcome?
     unless (newSem == oldSem') $
-       throwError $ unwords
-           [ "Edit failed, version ranges don't match: "
+      (if optForce then log . ("Ignoring check: " ++) else throwError . ("Edit failed, " ++)) $
+         unwords
+           [ "version ranges don't match: "
            , C.prettyShow oldRange
            , "&&"
            , C.prettyShow optABVersionRange
