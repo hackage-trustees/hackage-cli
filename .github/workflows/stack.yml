@@ -38,10 +38,10 @@ jobs:
         # Stack is packing an old version of MSYS2.
         # To work around certification problems, we need to update msys2-keyring.
       run: |
-        stack exec ${ARGS} -- pacman --noconfirm -Sy msys2-keyring
-        stack exec ${ARGS} -- pacman --noconfirm -S mingw-w64-x86_64-pkg-config
-        stack exec ${ARGS} -- pacman --noconfirm -S mingw-w64-x86_64-brotli
-        stack exec ${ARGS} -- pacman --noconfirm -S mingw-w64-x86_64-openssl
+        stack exec ${{ env.ARGS }} -- pacman --noconfirm -Sy msys2-keyring
+        stack exec ${{ env.ARGS }} -- pacman --noconfirm -S mingw-w64-x86_64-pkg-config
+        stack exec ${{ env.ARGS }} -- pacman --noconfirm -S mingw-w64-x86_64-brotli
+        stack exec ${{ env.ARGS }} -- pacman --noconfirm -S mingw-w64-x86_64-openssl
 
     - name: Install the brotli library (Ubuntu)
       if: ${{ runner.os == 'Linux' }}
@@ -70,8 +70,8 @@ jobs:
 
     - name: Build hackage-cli
       run: |
-        stack build ${ARGS}
+        stack build ${{ env.ARGS }}
 
     - name: Test hackage-cli
       run: |
-        stack test ${ARGS}
+        stack test ${{ env.ARGS }}
