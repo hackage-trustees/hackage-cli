@@ -14,19 +14,17 @@ jobs:
       fail-fast: false
       matrix:
         os:      [ubuntu-latest]
-        ghc-ver: [9.2.2, 9.0.2, 8.10.7, 8.8.4, 8.6.5, 8.4.4, 8.2.2]
+        ghc-ver: [9.2.4, 9.0.2, 8.10.7, 8.8.4, 8.6.5, 8.4.4, 8.2.2]
         include:
           - os: macos-latest
-            ghc-ver: 8.10.7
+            ghc-ver: 9.2.4
           - os: windows-latest
-            ghc-ver: 8.10.7
-          - os: windows-latest
-            ghc-ver: 8.6.5
+            ghc-ver: 9.2.4
     env:
-      ARGS: "--stack-yaml stack-${{ matrix.ghc-ver }}.yaml --no-terminal --system-ghc"
+      ARGS: "--stack-yaml=stack-${{ matrix.ghc-ver }}.yaml --no-terminal --system-ghc"
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - uses: haskell/actions/setup@v1
       id: haskell-setup
@@ -62,7 +60,7 @@ jobs:
         export STACK_VER=$(stack --numeric-version)
         echo "STACK_VER=${STACK_VER}" >> ${GITHUB_ENV}
 
-    - uses: actions/cache@v2
+    - uses: actions/cache@v3
       name: Cache dependencies
       id: cache
       with:
