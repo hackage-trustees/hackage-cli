@@ -14,10 +14,10 @@ jobs:
       fail-fast: false
       matrix:
         os:      [ubuntu-latest]
-        ghc-ver: [9.2.4, 9.0.2, 8.10.7, 8.8.4, 8.6.5, 8.4.4, 8.2.2]
+        ghc-ver: [9.4.3, 9.2.5, 9.0.2, 8.10.7, 8.8.4, 8.6.5, 8.4.4, 8.2.2]
         include:
           - os: macos-latest
-            ghc-ver: 9.2.4
+            ghc-ver: 9.4.3
           - os: windows-latest
             ghc-ver: 9.2.4
     env:
