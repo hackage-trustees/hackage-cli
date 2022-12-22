@@ -53,11 +53,6 @@ jobs:
         sudo apt-get update
         sudo apt-get install libbrotli-dev -qq
 
-    - name: Install the numa library (Ubuntu, GHC 8.4.4)
-      if: ${{ runner.os == 'Linux' && matrix.ghc-ver == '8.4.4' }}
-      run: |
-        sudo apt-get install libnuma-dev -qq
-
     - name: Set environment variables based on Haskell setup
       run: |
         export STACK_VER=$(stack --numeric-version)
