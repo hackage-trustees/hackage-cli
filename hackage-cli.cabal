@@ -15,6 +15,7 @@ maintainer:          Andreas Abel
 category:            Development
 build-type:          Simple
 
+-- Supported GHC versions when building with cabal:
 tested-with:
   -- Keep in descending order.
   GHC == 9.4.3
@@ -31,6 +32,12 @@ extra-source-files:
   README.md
   fixtures/*.diff
   fixtures/*.cabal
+  -- Supported GHC versions when building with stack:
+  stack-9.4.3.yaml
+  stack-9.2.5.yaml
+  stack-9.2.4.yaml
+  stack-9.0.2.yaml
+  stack-8.10.7.yaml
 
 source-repository head
   Type:     git
