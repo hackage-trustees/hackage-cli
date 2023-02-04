@@ -1,7 +1,6 @@
 cabal-version:       2.4
 name:                hackage-cli
-version:             0.1.0.0
-x-revision:          1
+version:             0.1.0.1
 
 synopsis:            CLI tool for Hackage
 description:
@@ -19,6 +18,7 @@ build-type:          Simple
 -- Supported GHC versions when building with cabal:
 tested-with:
   -- Keep in descending order.
+  GHC == 9.6.0
   GHC == 9.4.4
   GHC == 9.2.5
   GHC == 9.0.2
@@ -36,7 +36,6 @@ extra-source-files:
   -- Supported GHC versions when building with stack:
   stack-9.4.4.yaml
   stack-9.2.5.yaml
-  stack-9.2.4.yaml
   stack-9.0.2.yaml
   stack-8.10.7.yaml
 
@@ -51,10 +50,9 @@ library cabal-revisions
   ghc-options:         -Wall -Wcompat
 
   build-depends:
-    , base         >= 4.10.0.0 && < 4.18
+    , base         >= 4.10.0.0 && < 4.19
     , bytestring   >= 0.10.4.0 && < 0.12
-    , Cabal        >= 3.4      && < 3.9
-        -- issue #55: build failure with Cabal-3.9.0.0
+    , Cabal        >= 3.4      && < 3.11
     , containers   >= 0.5.0.0  && < 0.7
     , mtl          >= 2.2.2    && < 2.3   || >= 2.3.1 && < 2.4
     , pretty      ^>= 1.1.2
