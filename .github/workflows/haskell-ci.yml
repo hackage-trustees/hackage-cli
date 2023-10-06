@@ -8,9 +8,9 @@
 #
 # For more information, see https://github.com/andreasabel/haskell-ci
 #
-# version: 0.17.20230911
+# version: 0.17.20231002
 #
-# REGENDATA ("0.17.20230911",["github","hackage-cli.cabal"])
+# REGENDATA ("0.17.20231002",["github","hackage-cli.cabal"])
 #
 name: Haskell-CI
 on:
@@ -32,14 +32,14 @@ jobs:
     strategy:
       matrix:
         include:
-          - compiler: ghc-9.8.0.20230822
+          - compiler: ghc-9.8.0.20230929
             compilerKind: ghc
-            compilerVersion: 9.8.0.20230822
+            compilerVersion: 9.8.0.20230929
             setup-method: ghcup
             allow-failure: true
-          - compiler: ghc-9.6.2
+          - compiler: ghc-9.6.3
             compilerKind: ghc
-            compilerVersion: 9.6.2
+            compilerVersion: 9.6.3
             setup-method: ghcup
             allow-failure: false
           - compiler: ghc-9.4.7
