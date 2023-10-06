@@ -814,7 +814,13 @@ mainWithOptions Options {..} = do
          unless (and results) $ exitFailure
 
        GetBounds gb@GetBoundsOptions{ optGBFiles } -> do
-         forM_ optGBFiles $ \fp -> getBounds (fp <$ gb)
+         -- Run get-bounds for all given cabal files, skipping to next on error.
+         results <- forM optGBFiles $ \fp -> do
+           runExceptT (getBounds (fp <$ gb)) >>= \case
+             Left err -> False <$ log err
+             Right () -> return True
+         -- If get-bounds failed for one cabal file, report failure.
+         unless (and results) $ exitFailure
 
    return ()
   where
@@ -973,12 +979,25 @@ addBound AddBoundOptions{ optABPackageName, optABVersionRange, optForce, optABMe
 
 
 -- | Report all bounds in the given cabal file.
-getBounds :: GetBoundsOptions' FilePath -> IO ()
+getBounds :: GetBoundsOptions' FilePath -> ExceptT String IO ()
 getBounds GetBoundsOptions{ optGBFiles = fp } = do
-  gpd <- parseGenericPackageDescription' <$> BS.readFile fp
+  contents <- liftIO $ BS.readFile fp
+
+  -- Try to find the libary section. We don't need it, but we would just report
+  -- no bounds for the case we can't find it, and we'd rather an error so it can
+  -- be destinguished from the case of truly no dependencies.
+  void $ do
+    fs <- either (\ err -> throwError $ unwords ["Parsing", fp, "failed:", show err]) return $
+        C.readFields contents
+    maybe
+        (throwError $ "Cannot find library section in " ++ fp)
+        return
+        (findLibrarySection fs)
+
+  let gpd = parseGenericPackageDescription' contents
 
   forM_ (extractRanges gpd) $ \(pkgName, range) ->
-    putStrLn $ unwords
+    liftIO $ putStrLn $ unwords
       [ fp <> ":"
       , C.prettyShow pkgName
       , C.prettyShow range
