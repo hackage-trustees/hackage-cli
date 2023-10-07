@@ -806,21 +806,13 @@ mainWithOptions Options {..} = do
 
        AddBound ab@AddBoundOptions{ optABFiles } -> do
          -- Run add-bound for all given cabal files, skipping to next on error.
-         results <- forM optABFiles $ \fp -> do
-           runExceptT (addBound (fp <$ ab)) >>= \case
-             Left err -> False <$ log err
-             Right () -> return True
          -- If add-bound failed for one cabal file, report failure.
-         unless (and results) $ exitFailure
+         sequenceExceptT_ $ map (addBound . (<$ ab)) optABFiles
 
        GetBounds gb@GetBoundsOptions{ optGBFiles } -> do
          -- Run get-bounds for all given cabal files, skipping to next on error.
-         results <- forM optGBFiles $ \fp -> do
-           runExceptT (getBounds (fp <$ gb)) >>= \case
-             Left err -> False <$ log err
-             Right () -> return True
          -- If get-bounds failed for one cabal file, report failure.
-         unless (and results) $ exitFailure
+         sequenceExceptT_ $ map (getBounds . (<$ gb)) optGBFiles
 
    return ()
   where
@@ -894,16 +886,14 @@ extractRange :: LC.GenericPackageDescription -> C.PackageName -> C.VersionRange
 extractRange gpd pkgName =
     List.foldl' C.intersectVersionRanges C.anyVersion vss
   where
-    -- TODO: can re-use extractRanges here somehow
-    vss = gpd ^.. LC.condLibrary . _Just . condTreeDataL . LC.targetBuildDepends . traverse . to ext . _Just
-    ext (C.Dependency pkgName' vr _)
-       | pkgName == pkgName' = Just vr
-       | otherwise           = Nothing
+    vss :: [C.VersionRange]
+    vss = map snd $ filter ((pkgName ==) . fst) $ extractRanges gpd
 
 extractRanges :: LC.GenericPackageDescription -> [(C.PackageName, C.VersionRange)]
 extractRanges =
   (^.. LC.condLibrary . _Just . condTreeDataL . LC.targetBuildDepends . traverse . to ext)
   where
+    ext :: C.Dependency -> (C.PackageName, C.VersionRange)
     ext (C.Dependency pkgName' vr _) = (pkgName', vr)
 
 condTreeDataL :: Functor f => (a -> f a) -> C.CondTree v c a -> f (C.CondTree v c a)
@@ -1006,6 +996,20 @@ getBounds GetBoundsOptions{ optGBFiles = fp } = do
 -- | Print line to 'stderr'.
 log :: MonadIO m => String -> m ()
 log = liftIO . hPutStrLn stderr
+
+-- | Run a sequence of IO actions.
+--   If any of these throws a user exception, exit with failure after trying all.
+sequenceExceptT_ :: [ExceptT String IO ()] -> IO ()
+sequenceExceptT_ ms = do
+  results <- mapM runExceptToBool ms
+  unless (and results) exitFailure
+
+-- | Run an IO action. If it throws a user exception, 'log' it and return @False@, else @True@.
+runExceptToBool :: ExceptT String IO () -> IO Bool
+runExceptToBool m =
+  runExceptT m >>= \case
+    Left err -> False <$ log err
+    Right () -> return True
 
 -- | Try to clean-up HTML fragments to be more readable
 tidyHtml :: ByteString -> ByteString
