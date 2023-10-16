@@ -70,19 +70,17 @@ jobs:
         restore-keys: ${{ runner.os }}-stack-${{ env.STACK_VER }}-ghc-${{ matrix.ghc-ver }}-
 
     - name: Install dependencies
-      if: ${{ !steps.cache.outputs.cache-hit }}
+      if: ${{ steps.cache.outputs.cache-hit != 'true' }}
       run: |
         stack build ${{ env.ARGS }} --test --only-dependencies
 
     - name: Cache dependencies (save)
       uses: actions/cache/save@v3
-      env:
-        key: ${{ steps.cache.outputs.cache-primary-key }}
-      # Will fail if we already have a cache with this key.
-      if:   ${{ !(steps.cache.outputs.cache-hit && env.key == steps.cache.outputs.cache-matched-key) }}
+      # Will fail if we already have a cache with this key (in this case, cache-hit is true).
+      if: ${{ steps.cache.outputs.cache-hit != 'true' }}
       with:
         path: ${{ steps.haskell-setup.outputs.stack-root }}
-        key:  ${{ env.key }}
+        key:  ${{ steps.cache.outputs.cache-primary-key }}
 
     - name: Build hackage-cli
       run: |
