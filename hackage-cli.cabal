@@ -115,7 +115,7 @@ executable hackage-cli
         -- aeson-1.2.4.0 for stack-8.2.2.yaml
     , deepseq               ^>= 1.4.0.0 || ^>= 1.5.0.0
     , directory             ^>= 1.2.0.1 || ^>= 1.3.0.0
-    , filepath              ^>= 1.4.0.0
+    , filepath               >= 1.4.0.0  && < 2
     , http-io-streams       ^>= 0.1.0.0
     , io-streams            ^>= 1.5.0.1
     , microlens              >= 0.4.8.3  && < 4.13
@@ -127,7 +127,7 @@ executable hackage-cli
     , semigroups             >= 0.18.3   && < 0.21
     , stringsearch          ^>= 0.3.6
     , tagsoup               ^>= 0.14
-    , tar                   ^>= 0.5
+    , tar                    >= 0.5      && < 1
     , text                   >= 1.2      && < 2.2
     , time                   >= 1.5.0.1  && < 1.13
     , unordered-containers  ^>= 0.2.7
