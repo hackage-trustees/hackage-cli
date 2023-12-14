@@ -29,9 +29,11 @@ tested-with:
   GHC == 8.4.4
   GHC == 8.2.2
 
-extra-source-files:
+extra-doc-files:
   CHANGELOG.md
   README.md
+
+extra-source-files:
   fixtures/*.diff
   fixtures/*.cabal
   -- Supported GHC versions when building with stack:
