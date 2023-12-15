@@ -515,6 +515,11 @@ data AddBoundOptions' a = AddBoundOptions
   , optABFiles        :: a                 -- ^ One or several files.
   } deriving (Show, Functor)
 
+type GetBoundsOptions = GetBoundsOptions' [FilePath]
+data GetBoundsOptions' a = GetBoundsOptions
+  { optGBFiles        :: a                 -- ^ One or several files.
+  } deriving (Show, Functor)
+
 data Command
     = ListCabal !ListCOptions
     | PullCabal !PullCOptions
@@ -524,6 +529,7 @@ data Command
     | CheckRevision !CheckROptions
     | IndexShaSum   !IndexShaSumOptions
     | AddBound !AddBoundOptions
+    | GetBounds !GetBoundsOptions
     deriving Show
 
 optionsParserInfo :: ParserInfo Options
@@ -588,6 +594,8 @@ optionsParserInfo
                                                    <*> many (OA.option str (OA.short 'm' <> OA.long "message" <> metavar "MSG" <> help "Use given MSG as a comment. If multiple -m options are given, their values are concatenated with 'unlines'."))
                                                    <*> some (OA.argument str (metavar "CABALFILES..." <> action "file")))
 
+    getboundsParser = GetBounds <$> (GetBoundsOptions <$> some (OA.argument str (metavar "CABALFILES..." <> action "file")))
+
     oParser
         = Options <$> switch (long "verbose" <> help "Enable verbose output.")
                   <*> option bstr (long "hostname"  <> metavar "HOSTNAME" <> value "hackage.haskell.org"
@@ -608,6 +616,8 @@ optionsParserInfo
                                                    (progDesc "Generate sha256sum-format file."))
                                          , command "add-bound" (info (helper <*> addboundParser)
                                                    (progDesc "Add bound to the library section of a package, unless the bound is redundant. The .cabal file is edited in place."))
+                                         , command "get-bounds" (info (helper <*> getboundsParser)
+                                                   (progDesc "Print bounds from the library section of a package."))
                                          ])
 
     verOption = infoOption verMsg (long "version" <> help "Output version information and exit.")
@@ -796,12 +806,13 @@ mainWithOptions Options {..} = do
 
        AddBound ab@AddBoundOptions{ optABFiles } -> do
          -- Run add-bound for all given cabal files, skipping to next on error.
-         results <- forM optABFiles $ \fp -> do
-           runExceptT (addBound (fp <$ ab)) >>= \case
-             Left err -> False <$ log err
-             Right () -> return True
          -- If add-bound failed for one cabal file, report failure.
-         unless (and results) $ exitFailure
+         sequenceExceptT_ $ map (addBound . (<$ ab)) optABFiles
+
+       GetBounds gb@GetBoundsOptions{ optGBFiles } -> do
+         -- Run get-bounds for all given cabal files, skipping to next on error.
+         -- If get-bounds failed for one cabal file, report failure.
+         sequenceExceptT_ $ map (getBounds . (<$ gb)) optGBFiles
 
    return ()
   where
@@ -875,10 +886,15 @@ extractRange :: LC.GenericPackageDescription -> C.PackageName -> C.VersionRange
 extractRange gpd pkgName =
     List.foldl' C.intersectVersionRanges C.anyVersion vss
   where
-    vss = gpd ^.. LC.condLibrary . _Just . condTreeDataL . LC.targetBuildDepends . traverse . to ext . _Just
-    ext (C.Dependency pkgName' vr _)
-       | pkgName == pkgName' = Just vr
-       | otherwise           = Nothing
+    vss :: [C.VersionRange]
+    vss = map snd $ filter ((pkgName ==) . fst) $ extractRanges gpd
+
+extractRanges :: LC.GenericPackageDescription -> [(C.PackageName, C.VersionRange)]
+extractRanges =
+  (^.. LC.condLibrary . _Just . condTreeDataL . LC.targetBuildDepends . traverse . to ext)
+  where
+    ext :: C.Dependency -> (C.PackageName, C.VersionRange)
+    ext (C.Dependency pkgName' vr _) = (pkgName', vr)
 
 condTreeDataL :: Functor f => (a -> f a) -> C.CondTree v c a -> f (C.CondTree v c a)
 condTreeDataL f (C.CondNode x c cs) = f x <&> \y -> C.CondNode y c cs
@@ -951,9 +967,49 @@ addBound AddBoundOptions{ optABPackageName, optABVersionRange, optForce, optABMe
     log $ unwords [ "Adding bound to", fp ]
     liftIO $ BS.writeFile fp new
 
+
+-- | Report all bounds in the given cabal file.
+getBounds :: GetBoundsOptions' FilePath -> ExceptT String IO ()
+getBounds GetBoundsOptions{ optGBFiles = fp } = do
+  contents <- liftIO $ BS.readFile fp
+
+  -- Try to find the libary section. We don't need it, but we would just report
+  -- no bounds for the case we can't find it, and we'd rather an error so it can
+  -- be destinguished from the case of truly no dependencies.
+  void $ do
+    fs <- either (\ err -> throwError $ unwords ["Parsing", fp, "failed:", show err]) return $
+        C.readFields contents
+    maybe
+        (throwError $ "Cannot find library section in " ++ fp)
+        return
+        (findLibrarySection fs)
+
+  let gpd = parseGenericPackageDescription' contents
+
+  forM_ (extractRanges gpd) $ \(pkgName, range) ->
+    liftIO $ putStrLn $ unwords
+      [ fp <> ":"
+      , C.prettyShow pkgName
+      , C.prettyShow range
+      ]
+
 -- | Print line to 'stderr'.
 log :: MonadIO m => String -> m ()
 log = liftIO . hPutStrLn stderr
+
+-- | Run a sequence of IO actions.
+--   If any of these throws a user exception, exit with failure after trying all.
+sequenceExceptT_ :: [ExceptT String IO ()] -> IO ()
+sequenceExceptT_ ms = do
+  results <- mapM runExceptToBool ms
+  unless (and results) exitFailure
+
+-- | Run an IO action. If it throws a user exception, 'log' it and return @False@, else @True@.
+runExceptToBool :: ExceptT String IO () -> IO Bool
+runExceptToBool m =
+  runExceptT m >>= \case
+    Left err -> False <$ log err
+    Right () -> return True
 
 -- | Try to clean-up HTML fragments to be more readable
 tidyHtml :: ByteString -> ByteString
