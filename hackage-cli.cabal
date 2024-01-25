@@ -19,7 +19,7 @@ build-type:          Simple
 tested-with:
   -- Keep in descending order.
   GHC == 9.8.1
-  GHC == 9.6.3
+  GHC == 9.6.4
   GHC == 9.4.8
   GHC == 9.2.8
   GHC == 9.0.2
@@ -37,7 +37,8 @@ extra-source-files:
   fixtures/*.diff
   fixtures/*.cabal
   -- Supported GHC versions when building with stack:
-  stack-9.6.3.yaml
+  stack-9.8.1.yaml
+  stack-9.6.4.yaml
   stack-9.4.8.yaml
   stack-9.2.8.yaml
   stack-9.0.2.yaml
