@@ -31,6 +31,7 @@ import qualified Data.ByteString.Lazy                   as BSL
 import qualified Data.ByteString.Search                 as BSS
 import           Data.Char                              (isSpace)
 import           Data.Foldable                          (toList)
+import           Data.Function.Compat                   (applyWhen)
 import qualified Data.List                              as List
 import           Data.Maybe
 import           Data.Time.Clock.POSIX                  (getPOSIXTime)
@@ -735,18 +736,18 @@ mainWithOptions Options {..} = do
            putStrLn $ "Using Hackage credentials for username " ++ show username
 
            forM_ optPsCFiles $ \fn -> do
-               (pkgn,pkgv,xrev) <- pkgDescToPkgIdXrev <$> C.readGenericPackageDescription C.deafening fn
+               (pkgn, pkgv, xrev0) <- pkgDescToPkgIdXrev <$> C.readGenericPackageDescription C.deafening fn
+               let xrev = applyWhen optPsCIncrRev (+1) xrev0
+
                putStrLn $ concat [ "Pushing ", show fn
                                  , " (", BS8.unpack pkgn, "-", BS8.unpack pkgv, "~", show xrev, ")"
                                  , if not optPsCPublish then " [review-mode]" else "", " ..."
                                  ]
 
-               let editCab | optPsCIncrRev = cabalEditXRev (xrev+1)
-                           | otherwise    = id
-
-               rawcab <- editCab <$> BS.readFile fn
-               (dt,tmp) <- timeIt $ runHConn (hackagePostCabal (username,password) (pkgn,pkgv) rawcab
-                                                               (if optPsCPublish then WetRun else DryRun))
+               rawcab <- applyWhen optPsCIncrRev (cabalEditXRev xrev) <$> BS.readFile fn
+               (dt, tmp) <- timeIt $ runHConn $
+                 hackagePostCabal (username, password) (pkgn, pkgv) rawcab $
+                   if optPsCPublish then WetRun else DryRun
 
                printf "Hackage response was (after %.3f secs):\n" dt
                putStrLn (replicate 80 '=')
