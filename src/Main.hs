@@ -11,7 +11,7 @@
 -- Copyright   :  Herbert Valerio Riedel, Andreas Abel
 -- SPDX-License-Identifier: GPL-3.0-or-later
 --
-module Main where
+module Main (main) where
 
 import           Prelude                                hiding (log)
 
@@ -64,7 +64,6 @@ import           Options.Applicative                    as OA
 import           System.Directory
 import           System.Environment                     (lookupEnv)
 import           System.Exit                            (ExitCode (..), exitFailure)
-import           System.FilePath
 import           System.IO                              (hPutStrLn, stderr)
 import           System.IO.Error                        (tryIOError, isDoesNotExistError)
 import qualified System.IO.Streams                      as Streams
@@ -133,34 +132,6 @@ hackageSendGET p a = do
     c <- openHConn
     liftIO $ sendRequest c q1 emptyBody
     hcReqCnt += 1
-
-hackagePutTgz :: ByteString -> ByteString -> HIO ByteString
-hackagePutTgz p tgz = do
-    q1 <- liftIO $ buildRequest $ do
-        http PUT p
-        setUA
-        -- setAccept "application/json" -- wishful thinking
-        setContentType "application/x-tar"
-        -- setContentEncoding "gzip"
-        setContentLength (fromIntegral $ BS.length tgz)
-
-    lft <- use hcReqLeft
-    unless (lft > 0) $
-        fail "hackagePutTgz: request budget exhausted for current connection"
-
-    c <- openHConn
-    liftIO $ sendRequest c q1 (bsBody tgz)
-    resp <- liftIO $ try (receiveResponse c concatHandler')
-    closeHConn
-    hcReqCnt += 1
-
-    case resp of
-        Right bs -> -- do
-            -- liftIO $ BS.writeFile "raw.out" bs
-            return bs
-
-        Left e@HttpClientError {} -> -- do
-            return (BS8.pack $ show e)
 
 hackageRecvResp :: HIO ByteString
 hackageRecvResp = do
@@ -252,47 +223,6 @@ instance ToBuilder BSL.ByteString where
 
 bsBody :: ToBuilder a => a -> Streams.OutputStream Builder.Builder -> IO ()
 bsBody bs = Streams.write (Just (toBuilder bs))
-
--- | Upload a candidate to Hackage
---
--- This is a bit overkill, as one could easily just use @curl(1)@ for this:
---
--- > curl --form package=@"$PKGID".tar.gz -u "${CREDS}" https://hackage.haskell.org/packages/candidates/
---
-hackagePushCandidate :: (ByteString,ByteString) -> (FilePath,ByteString) -> HIO ByteString
-hackagePushCandidate cred (tarname,rawtarball) = do
-    when (boundary `BS.isInfixOf` rawtarball) $ fail "WTF... tarball contains boundary-pattern"
-
-    q1 <- liftIO $ buildRequest $ do
-        http POST urlpath
-        setUA
-        uncurry setAuthorizationBasic cred
-        setAccept "application/json" -- wishful thinking
-        setContentType ("multipart/form-data; boundary="<>boundary) -- RFC2388
-        setContentLength bodyLen
-
-    c <- reOpenHConn
-
-    liftIO $ sendRequest c q1 (bsBody body)
-
-    resp <- liftIO $ try (receiveResponse c (\r is -> (,) r <$> concatHandler r is))
-    closeHConn
-
-    case resp of
-        Right (rc,bs) -> do
-            return (BS8.pack (show rc) <> bs)
-        Left (HttpClientError code bs) -> return (BS8.pack ("code=" <> show code <> "\n") <> bs)
-            -- Hackage currently timeouts w/ 503 guru meditation errors,
-            -- which usually means that the transaction has succeeded
-  where
-    urlpath = "/packages/candidates/"
-
-    body = Builder.toLazyByteString $
-           multiPartBuilder boundary [ ("package", [("filename", BS8.pack tarname)]
-                                     , ["Content-Type: application/gzip"], rawtarball)]
-    bodyLen = fromIntegral $ BSL.length body
-
-    boundary = "4d5bb1565a084d78868ff0178bdf4f61"
 
 -- | Simplified RFC2388 multipart/form-data formatter
 --
@@ -498,10 +428,6 @@ data PushCOptions = PushCOptions
   , optPsCFiles   :: [FilePath]
   } deriving Show
 
-data PushPCOptions = PushPCOptions
-  { optPPCFiles :: [FilePath]
-  } deriving Show
-
 data CheckROptions = CheckROptions
   { optCRNew  :: FilePath
   , optCROrig :: FilePath
@@ -521,7 +447,6 @@ data Command
     | PullCabal !PullCOptions
     | PushCabal !PushCOptions
     | SyncCabal !SyncCOptions
-    | PushCandidate !PushPCOptions
     | CheckRevision !CheckROptions
     | IndexShaSum   !IndexShaSumOptions
     | AddBound !AddBoundOptions
@@ -573,8 +498,6 @@ optionsParserInfo
                              <*> switch (long "publish"  <> help "publish revision (review-mode)")
                              <*> some (OA.argument str (metavar "CABALFILES..." <> action "file")))
 
-    pushpcoParser = PushCandidate <$> (PushPCOptions <$> some (OA.argument str (metavar "TARBALLS..." <> action "file")))
-
     checkrevParsser = CheckRevision <$> (CheckROptions <$> OA.argument str (metavar "NEWCABAL" <> action "file")
                                                        <*> OA.argument str (metavar "OLDCABAL" <> action "file"))
 
@@ -599,8 +522,6 @@ optionsParserInfo
                                                    (progDesc "Upload revised .cabal files."))
                                          , command "sync-cabal" (info (helper <*> synccoParser)
                                                    (progDesc "Update/sync local .cabal file with latest revision on Hackage."))
-                                         , command "push-candidate" (info (helper <*> pushpcoParser)
-                                                   (progDesc "Upload package candidate(s)."))
                                          , command "list-versions" (info (helper <*> listcoParser)
                                                    (progDesc "List versions for a package."))
                                          , command "check-revision" (info (helper <*> checkrevParsser)
@@ -753,22 +674,6 @@ mainWithOptions Options {..} = do
                putStrLn (replicate 80 '=')
                BS8.putStrLn (tidyHtml tmp)
                putStrLn (replicate 80 '=')
-
-       PushCandidate (PushPCOptions {..}) -> do
-           (username,password) <- maybe (fail "missing Hackage credentials") return =<< getHackageCreds
-           putStrLn $ "Using Hackage credentials for username " ++ show username
-
-           forM_ optPPCFiles $ \fn -> do
-               putStrLn $ "reading " ++ show fn ++ " ..."
-               rawtar <- BS.readFile fn
-               putStrLn $ "uplading to Hackage..."
-               tmp <- runHConn (hackagePushCandidate (username,password) (takeFileName fn, rawtar))
-
-               putStrLn "Hackage response was:"
-               putStrLn (replicate 80 '=')
-               BS8.putStrLn tmp
-               putStrLn (replicate 80 '=')
-
 
        CheckRevision (CheckROptions {..}) -> do
            old <- BS.readFile optCROrig
