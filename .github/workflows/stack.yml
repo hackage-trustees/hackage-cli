@@ -14,16 +14,17 @@ jobs:
       fail-fast: false
       matrix:
         os:      [ubuntu-latest]
-        ghc-ver: [9.8.1, 9.6.4]
+        ghc-ver: [9.8, 9.6]
           # Snapshots for 9.4.8, 9.2.8, 9.0.2, 8.10.7 do not have a recent enough base-compat; 0.13 is needed.
           # On ubuntu-22.04 the old versions 8.8.4, 8.6.5, 8.4.4, 8.2.2 fail due to HsOpenSSL linking errors.
           # They used to work under ubuntu-20.04, but it is not worth the trouble maintaining them.
           # Apparently, HsOpenSSL-0.11.6 and older are too old for ubuntu-22.04.
         include:
           - os: macos-latest
-            ghc-ver: 9.8.1
+            ghc-ver: 9.8
           - os: windows-latest
-            ghc-ver: 9.8.1
+            ghc-ver: 9.8
+
     env:
       ARGS: "--stack-yaml=stack-${{ matrix.ghc-ver }}.yaml --no-terminal --system-ghc"
 
@@ -35,13 +36,19 @@ jobs:
     - uses: actions/checkout@v4
 
     - uses: haskell-actions/setup@v2
-      id: haskell-setup
+      id: setup
       with:
         ghc-version: ${{ matrix.ghc-ver }}
         enable-stack: true
 
+    - name: Set up the openssl library (MacOS)
+      if: runner.os == 'macOS'
+      run: |
+        echo "PKG_CONFIG_PATH=${PKG_CONFIG_PATH}"
+        echo "PKG_CONFIG_PATH=$(brew --prefix)/opt/openssl/lib/pkgconfig" >> "${GITHUB_ENV}"
+
     - name: Install the brotli library (Windows)
-      if: ${{ runner.os == 'Windows' }}
+      if: runner.os == 'Windows'
         # Andreas Abel, 2022-02-15:
         # Stack is packing an old version of MSYS2.
         # To work around certification problems, we need to update msys2-keyring.
@@ -52,24 +59,19 @@ jobs:
         stack exec ${{ env.ARGS }} -- pacman --noconfirm -S mingw-w64-x86_64-openssl
 
     - name: Install the brotli library (Ubuntu)
-      if: ${{ runner.os == 'Linux' }}
+      if: runner.os == 'Linux'
       run: |
         sudo apt-get update
         sudo apt-get install libbrotli-dev -qq
-
-    - name: Set environment variables based on Haskell setup
-      run: |
-        STACK_VER=$(stack --numeric-version)
-        echo "STACK_VER=${STACK_VER}" >> "${GITHUB_ENV}"
 
     - name: Cache dependencies (restore)
       uses: actions/cache/restore@v4
       id: cache
       with:
-        path: ${{ steps.haskell-setup.outputs.stack-root }}
+        path: ${{ steps.setup.outputs.stack-root }}
         # Use a unique primary key (always save new cache); works if caches aren't to big or too many...
-        key:          ${{ runner.os }}-stack-${{ env.STACK_VER }}-ghc-${{ matrix.ghc-ver }}-commit-${{ github.sha }}
-        restore-keys: ${{ runner.os }}-stack-${{ env.STACK_VER }}-ghc-${{ matrix.ghc-ver }}-
+        key:          ${{ runner.os }}-stack-${{ steps.setup.outputs.stack-version }}-ghc-${{ steps.setup.outputs.ghc-version }}-commit-${{ github.sha }}
+        restore-keys: ${{ runner.os }}-stack-${{ steps.setup.outputs.stack-version }}-ghc-${{ steps.setup.outputs.ghc-version }}-
 
     - name: Install dependencies
       # if: ${{ steps.cache.outputs.cache-hit != 'true' }}
@@ -86,9 +88,8 @@ jobs:
 
     - name: Cache dependencies (save)
       uses: actions/cache/save@v4
-      if: always()
+      if: always() && steps.cache.outputs.cache-hit != 'true'
       # # Will fail if we already have a cache with this key (in this case, cache-hit is true).
-      # if: ${{ steps.cache.outputs.cache-hit != 'true' }}
       with:
-        path: ${{ steps.haskell-setup.outputs.stack-root }}
+        path: ${{ steps.setup.outputs.stack-root }}
         key:  ${{ steps.cache.outputs.cache-primary-key }}
