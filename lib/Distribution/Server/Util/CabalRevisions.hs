@@ -12,7 +12,7 @@
 -- Copyright   :  Duncan Coutts et al.
 -- SPDX-License-Identifier: BSD-3-Clause
 --
--- Maintainer  :  libraries@haskell.org
+-- Maintainer  :  Andreas Abel
 -- Stability   :  provisional
 -- Portability :  portable
 --
@@ -178,8 +178,15 @@ checkCabalFileRevision checkXRevision old new = do
 
     checkPackageChecks :: Check GenericPackageDescription
     checkPackageChecks pkg pkg' =
-      let checks  = checkPackage pkg  Nothing
-          checks' = checkPackage pkg' Nothing
+      let checks  = checkPackage pkg
+-- The API change of checkPackage happened somewhere between 3.10 and 3.12.
+#if !MIN_VERSION_Cabal(3,12,0)
+                      Nothing
+#endif
+          checks' = checkPackage pkg'
+#if !MIN_VERSION_Cabal(3,12,0)
+                      Nothing
+#endif
        in case checks' \\ checks of
             []        -> return ()
             newchecks -> fail $ unlines (map ppPackageCheck newchecks)

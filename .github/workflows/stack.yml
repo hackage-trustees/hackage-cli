@@ -13,17 +13,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:      [ubuntu-latest]
-        ghc-ver: [9.8, 9.6]
+        os:      [ubuntu-latest,macos-latest,windows-latest]
+        ghc-ver: ['9.10', '9.8', '9.6']
           # Snapshots for 9.4.8, 9.2.8, 9.0.2, 8.10.7 do not have a recent enough base-compat; 0.13 is needed.
           # On ubuntu-22.04 the old versions 8.8.4, 8.6.5, 8.4.4, 8.2.2 fail due to HsOpenSSL linking errors.
           # They used to work under ubuntu-20.04, but it is not worth the trouble maintaining them.
           # Apparently, HsOpenSSL-0.11.6 and older are too old for ubuntu-22.04.
-        include:
-          - os: macos-latest
-            ghc-ver: 9.8
-          - os: windows-latest
-            ghc-ver: 9.8
+        # include:
+        #   - os: macos-latest
+        #     ghc-ver: '9.10'
+        #   - os: windows-latest
+        #     ghc-ver: '9.10'
 
     env:
       ARGS: "--stack-yaml=stack-${{ matrix.ghc-ver }}.yaml --no-terminal --system-ghc"
