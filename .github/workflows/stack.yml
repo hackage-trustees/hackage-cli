@@ -76,15 +76,15 @@ jobs:
     - name: Install dependencies
       # if: ${{ steps.cache.outputs.cache-hit != 'true' }}
       run: |
-        stack build ${{ env.ARGS }} --test --only-dependencies
+        stack build ${{ env.ARGS }} --flag HsOpenSSL:use-pkg-config --test --only-dependencies
 
     - name: Build hackage-cli
       run: |
-        stack build ${{ env.ARGS }}
+        stack build ${{ env.ARGS }} --flag HsOpenSSL:use-pkg-config
 
     - name: Test hackage-cli
       run: |
-        stack test ${{ env.ARGS }}
+        stack test ${{ env.ARGS }} --flag HsOpenSSL:use-pkg-config
 
     - name: Cache dependencies (save)
       uses: actions/cache/save@v4
