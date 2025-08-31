@@ -81,6 +81,7 @@ import qualified Distribution.Types.GenericPackageDescription.Lens as LC
 
 -- import Cabal
 
+import           Distribution.Client.Add
 import           Distribution.Server.Util.CabalRevisions  ( diffCabalRevisions, Change(Change) )
 import           IndexShaSum                              ( IndexShaSumOptions(IndexShaSumOptions), run )
 import           CabalEdit                                ( PkgRev, cabalEditXRev )
@@ -441,7 +442,6 @@ data AddBoundOptions' a = AddBoundOptions
   { optABPackageName  :: C.PackageName
   , optABVersionRange :: C.VersionRange
   , optForce          :: Bool              -- ^ Disable the check whether bound is subsumed by existing constraints.
-  , optABMessage      :: [String]
   , optABFiles        :: a                 -- ^ One or several files.
   } deriving (Show, Functor)
 
@@ -512,7 +512,6 @@ optionsParserInfo
     addboundParser = AddBound <$> (AddBoundOptions <$> OA.argument prsc (metavar "DEPENDENCY")
                                                    <*> OA.argument prsc (metavar "VERSIONRANGE")
                                                    <*> OA.switch (long "force" <> help "Add bound even if it is already subsumed by existing constraints.")
-                                                   <*> many (OA.option str (OA.short 'm' <> OA.long "message" <> metavar "MSG" <> help "Use given MSG as a comment. If multiple -m options are given, their values are concatenated with 'unlines'."))
                                                    <*> some (OA.argument str (metavar "CABALFILES..." <> action "file")))
 
     oParser
@@ -814,29 +813,21 @@ condTreeDataL f (C.CondNode x c cs) = f x <&> \y -> C.CondNode y c cs
 -- Non-fatal errors (like parse errors) are reported in the Except monad.
 --
 addBound :: AddBoundOptions' FilePath -> ExceptT String IO ()
-addBound AddBoundOptions{ optABPackageName, optABVersionRange, optForce, optABMessage, optABFiles = fp } = do
+addBound AddBoundOptions{ optABPackageName, optABVersionRange, optForce, optABFiles = fp } = do
 
   old <- liftIO $ BS.readFile fp
-
-  -- idea is simple:
-  -- - .cabal is line oriented file
-  -- - find "library" section start
-  -- - bonus: look of an indentation used from the next field/section there
-  -- - insert data into a bytestring "manually"
   fs <- either (\ err -> throwError $ unwords ["Parsing", fp, "failed:", show err]) return $
       C.readFields old
-  (lin, indent) <- maybe
-      (throwError $ "Cannot find library section in " ++ fp)
-      return
-      (findLibrarySection fs)
-
-  let msgLines  = map ("-- " ++) optABMessage
-      bdLine    = "build-depends: " ++ C.prettyShow optABPackageName ++ " " ++ C.prettyShow optABVersionRange
-      midLines  = [ BS8.pack $ replicate indent ' ' ++ l
-                  | l <- msgLines ++ [bdLine]
-                  ] ++ [""] -- also add an empty line separator
-      (preLines, postLines) = splitAt lin $ BS8.lines old
-      new = BS8.unlines (preLines ++ midLines ++ postLines)
+  let addConfig = AddConfig
+        { cnfOrigContents = old
+        , cnfFields = fs
+        , cnfComponent = Right (C.CLibName C.LMainLibName)
+        , cnfTargetField = BuildDepends
+        , cnfAdditions = pure $ BS8.pack $ C.prettyShow optABPackageName ++ " " ++ C.prettyShow optABVersionRange
+        }
+  new <- case executeAddConfig (\_ _ -> True) addConfig of
+    Just x -> pure x
+    Nothing -> throwError $ "Cannot find library section in " ++ fp
 
   -- interpretation of version ranges
   let oldGpd = parseGenericPackageDescription' old
