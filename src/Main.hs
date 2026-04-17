@@ -120,7 +120,8 @@ hcReqLeft = hcReqCnt . to f
 setUA :: RequestBuilder ()
 setUA = setHeader "User-Agent" uaStr
   where
-    uaStr = "hackage-cli/" <> BS8.pack (V.showVersion Paths_hackage_cli.version)
+    uaStr = "curl/" <> BS8.pack (V.showVersion Paths_hackage_cli.version)
+    -- uaStr = "hackage-cli/" <> BS8.pack (V.showVersion Paths_hackage_cli.version)
 
 hackageSendGET :: ByteString -> ByteString -> HIO ()
 hackageSendGET p a = do
