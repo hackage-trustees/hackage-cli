@@ -19,18 +19,19 @@ build-type:          Simple
 tested-with:
   -- Keep in descending order.
   GHC == 9.14.1
-  GHC == 9.12.2
-  GHC == 9.10.2
+  GHC == 9.12.4
+  GHC == 9.10.3
   GHC == 9.8.4
   GHC == 9.6.7
   GHC == 9.4.8
   GHC == 9.2.8
   GHC == 9.0.2
-  GHC == 8.10.7
-  GHC == 8.8.4
-  GHC == 8.6.5
-  GHC == 8.4.4
-  GHC == 8.2.2
+  -- -- 2026-04-18: Stop testing GHC 8 on CI
+  -- GHC == 8.10.7
+  -- GHC == 8.8.4
+  -- GHC == 8.6.5
+  -- GHC == 8.4.4
+  -- GHC == 8.2.2
 
 extra-doc-files:
   CHANGELOG.md
