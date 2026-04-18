@@ -26,7 +26,8 @@ jobs:
         #     ghc-ver: '9.10'
 
     env:
-      ARGS: "--stack-yaml=stack-${{ matrix.ghc-ver }}.yaml --no-terminal --system-ghc"
+      # ARGS: "--stack-yaml=stack-${{ matrix.ghc-ver }}.yaml --no-terminal --system-ghc"
+      ARGS: "--stack-yaml=stack-${{ matrix.ghc-ver }}.yaml --no-terminal"
 
     # Needed for Windows to make piping (... >> ...) and evaluation ( $(...) ) work.
     defaults:
@@ -41,9 +42,15 @@ jobs:
       with:
         ghc-version: ${{ matrix.ghc-ver }}
         enable-stack: true
+        # Andreas, 2026-04-18
+        # There have been problems with libcrypto on macOS with GHC 9.8.4 with --system-ghc
+        # so we let Stack install GHC itself.
+        stack-no-global: true
 
     - name: Set up the openssl library (MacOS)
       if: runner.os == 'macOS'
+      # Already installed:
+      #         brew install openssl
       run: |
         echo "PKG_CONFIG_PATH=${PKG_CONFIG_PATH}"
         echo "PKG_CONFIG_PATH=$(brew --prefix)/opt/openssl/lib/pkgconfig" >> "${GITHUB_ENV}"
@@ -68,11 +75,15 @@ jobs:
     - name: Cache dependencies (restore)
       uses: actions/cache/restore@v5
       id: cache
+      env:
+        key: ${{ runner.os }}-stack-${{ steps.setup.outputs.stack-version }}-ghc-${{ matrix.ghc-ver }}
+          # ${{ steps.setup.outputs.ghc-version }} is empty with stack-no-global
+          # so we use plain ${{ matrix.ghc-ver }}
       with:
         path: ${{ steps.setup.outputs.stack-root }}
         # Use a unique primary key (always save new cache); works if caches aren't to big or too many...
-        key:          ${{ runner.os }}-stack-${{ steps.setup.outputs.stack-version }}-ghc-${{ steps.setup.outputs.ghc-version }}-commit-${{ github.sha }}
-        restore-keys: ${{ runner.os }}-stack-${{ steps.setup.outputs.stack-version }}-ghc-${{ steps.setup.outputs.ghc-version }}-
+        key:          ${{ env.key }}-commit-${{ github.sha }}
+        restore-keys: ${{ env.key }}-
 
     - name: Install dependencies
       # if: ${{ steps.cache.outputs.cache-hit != 'true' }}
