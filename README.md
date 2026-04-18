@@ -31,7 +31,6 @@ Available commands:
   push-cabal               upload revised .cabal files
   sync-cabal               upadate/sync local .cabal file with latest revision
                            on Hackage
-  push-candidate           upload package candidate(s)
   list-versions            list versions for a package
   check-revision           validate revision
   index-sha256sum          generate sha256sum-format file
