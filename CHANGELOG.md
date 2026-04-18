@@ -5,7 +5,7 @@
 _Andreas Abel, 2026-04-18_
 
 - Remove `push-candidate` command
-  (PR [#79](https://github.com/hackage-trustees/hackage-cli/pull/79)).
+  (PR [#71](https://github.com/hackage-trustees/hackage-cli/pull/71)).
 
 Builds with `Cabal 3.4 - 3.16` and `GHC 8.2 - 9.14.1`.
 
