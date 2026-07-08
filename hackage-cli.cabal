@@ -1,6 +1,7 @@
 cabal-version:       2.4
 name:                hackage-cli
 version:             0.2.0.0
+x-revision:          1
 
 synopsis:            CLI tool for Hackage
 description:
@@ -116,7 +117,7 @@ executable hackage-cli
     , mtl
 
   build-depends:
-    , aeson                  >= 1.2.4.0  && < 2.3
+    , aeson                  >= 1.2.4.0  && < 2.4
         -- aeson-1.2.4.0 for stack-8.2.2.yaml
     , base-compat            >= 0.13.0   && < 1
         -- base-compat for applyWhen (added to base in 4.18)
