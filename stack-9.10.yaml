@@ -1,6 +1,4 @@
-resolver: lts-24.37
-compiler: ghc-9.10.2
-compiler-check: match-exact
+resolver: lts-24.55
 
 flags:
   HsOpenSSL:

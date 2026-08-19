@@ -1,6 +1,4 @@
-resolver: nightly-2026-04-15
-compiler: ghc-9.12.2
-compiler-check: match-exact
+resolver: nightly-2026-08-16
 
 flags:
   HsOpenSSL:

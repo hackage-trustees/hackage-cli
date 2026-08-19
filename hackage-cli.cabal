@@ -1,7 +1,6 @@
 cabal-version:       2.4
 name:                hackage-cli
-version:             0.2.0.0
-x-revision:          1
+version:             0.3.0.0
 
 synopsis:            CLI tool for Hackage
 description:
@@ -44,8 +43,6 @@ extra-source-files:
   -- Supported GHC versions when building with stack:
   stack-9.12.yaml
   stack-9.10.yaml
-  stack-9.8.yaml
-  stack-9.6.yaml
 
 source-repository head
   Type:     git
