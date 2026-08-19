@@ -3,6 +3,6 @@ branches: master
 -- By default `installed` constraints are used for packages
 -- in global db. We can modify which constraints are used.
 -- 2026-04-18: For building with GHC 8, we'd need to unconstrain Cabal:
--- installed: +all -binary -Cabal
+installed: +all -directory -process
 
 apt: libbrotli-dev
