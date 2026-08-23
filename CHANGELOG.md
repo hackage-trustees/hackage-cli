@@ -2,12 +2,13 @@
 
 ## 0.3.0.0
 
-_Andreas Abel, 2026-08-19_
+_Andreas Abel, 2026-08-23_
 
 - Remove `--message` option from `add-bound` command and make it work with `common` stanzas
   (Bodigrim, PR [#76](https://github.com/hackage-trustees/hackage-cli/pull/76)).
+- Dropped support for GHC < 9.4.8.
 
-Builds with `Cabal 3.4 - 3.16` and `GHC 8.2 - 9.14.1`.
+Builds with `Cabal 3.8 - 3.16` and `GHC 9.4.8 - 9.14.1`.
 
 ## 0.2.0.0
 
